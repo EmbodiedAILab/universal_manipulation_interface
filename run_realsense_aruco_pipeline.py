@@ -39,48 +39,48 @@ def main(session_dir, calibration_dir):
         ]
         result = subprocess.run(cmd)
         assert result.returncode == 0
-        return
 
-        print("############# 01_extract_gopro_imu ###########")
-        script_path = script_dir.joinpath("01_extract_gopro_imu.py")
-        assert script_path.is_file()
-        cmd = [
-            'python', str(script_path),
-            str(session)
-        ]
-        result = subprocess.run(cmd)
-        assert result.returncode == 0
+        # print("############# 01_extract_gopro_imu ###########")
+        # script_path = script_dir.joinpath("01_extract_gopro_imu.py")
+        # assert script_path.is_file()
+        # cmd = [
+        #     'python', str(script_path),
+        #     str(session)
+        # ]
+        # result = subprocess.run(cmd)
+        # assert result.returncode == 0
 
-        print("############# 02_create_map ###########")
-        script_path = script_dir.joinpath("02_create_map.py")
-        assert script_path.is_file()
+        # print("############# 02_create_map ###########")
+        # script_path = script_dir.joinpath("02_create_map.py")
+        # assert script_path.is_file()
+        # demo_dir = session.joinpath('demos')
+        # mapping_dir = demo_dir.joinpath('mapping')
+        # assert mapping_dir.is_dir()
+        # map_path = mapping_dir.joinpath('map_atlas.osa')
+        # if not map_path.is_file():
+        #     cmd = [
+        #         'python', str(script_path),
+        #         '--input_dir', str(mapping_dir),
+        #         '--map_path', str(map_path)
+        #     ]
+        #     result = subprocess.run(cmd)
+        #     assert result.returncode == 0
+        #     assert map_path.is_file()
+
+        # print("############# 03_batch_slam ###########")
+        # script_path = script_dir.joinpath("03_batch_slam.py")
+        # assert script_path.is_file()
+        # cmd = [
+        #     'python', str(script_path),
+        #     '--input_dir', str(demo_dir),
+        #     '--map_path', str(map_path)
+        # ]
+        # result = subprocess.run(cmd)
+        # assert result.returncode == 0
+
+        print("############# 01_detect_aruco ###########")
         demo_dir = session.joinpath('demos')
-        mapping_dir = demo_dir.joinpath('mapping')
-        assert mapping_dir.is_dir()
-        map_path = mapping_dir.joinpath('map_atlas.osa')
-        if not map_path.is_file():
-            cmd = [
-                'python', str(script_path),
-                '--input_dir', str(mapping_dir),
-                '--map_path', str(map_path)
-            ]
-            result = subprocess.run(cmd)
-            assert result.returncode == 0
-            assert map_path.is_file()
-
-        print("############# 03_batch_slam ###########")
-        script_path = script_dir.joinpath("03_batch_slam.py")
-        assert script_path.is_file()
-        cmd = [
-            'python', str(script_path),
-            '--input_dir', str(demo_dir),
-            '--map_path', str(map_path)
-        ]
-        result = subprocess.run(cmd)
-        assert result.returncode == 0
-
-        print("############# 04_detect_aruco ###########")
-        script_path = script_dir.joinpath("04_detect_aruco.py")
+        script_path = script_dir.joinpath("01_detect_aruco.py")
         assert script_path.is_file()
         camera_intrinsics = calibration_dir.joinpath('gopro_intrinsics_2_7k.json')
         aruco_config = calibration_dir.joinpath('aruco_config.yaml')
@@ -95,6 +95,8 @@ def main(session_dir, calibration_dir):
         ]
         result = subprocess.run(cmd)
         assert result.returncode == 0
+
+        return
 
         print("############# 05_run_calibrations ###########")
         script_path = script_dir.joinpath("05_run_calibrations.py")
