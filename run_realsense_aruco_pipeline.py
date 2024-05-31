@@ -68,6 +68,15 @@ def main(session_dir, calibration_dir):
         result = subprocess.run(cmd)
         assert result.returncode == 0
 
+        print("############# 03_generate_trajectory ###########")
+        script_path = script_dir.joinpath("03_generate_trajectory.py")
+        assert script_path.is_file()
+        cmd = [
+            'python', str(script_path),
+            '--input', str(session)
+        ]
+        result = subprocess.run(cmd)
+        assert result.returncode == 0
         return
 
         print("############# 06_generate_dataset_plan ###########")
