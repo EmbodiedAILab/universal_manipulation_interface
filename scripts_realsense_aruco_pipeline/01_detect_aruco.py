@@ -15,10 +15,13 @@ os.chdir(ROOT_DIR)
 # %%
 import pathlib
 import click
+import numpy as np
+import cv2
 import multiprocessing
 import subprocess
 import concurrent.futures
 from tqdm import tqdm
+from umi.common.cv_util import draw_predefined_mask
 
 # %%
 @click.command()
@@ -45,6 +48,16 @@ def main(input_dir, camera_intrinsics, aruco_yaml, num_workers):
             futures = set()
             for video_dir in tqdm(input_video_dirs):
                 video_dir = video_dir.absolute()
+
+                no_mask = False
+                if not no_mask:
+                    mask_write_path = video_dir.joinpath('slam_mask.png')
+                    slam_mask = np.zeros((2028, 2704), dtype=np.uint8)
+                    slam_mask = draw_predefined_mask(
+                        slam_mask, color=255, mirror=True, gripper=False, finger=True)
+                    cv2.imwrite(str(mask_write_path.absolute()), slam_mask)
+
+
                 video_path = video_dir.joinpath('raw_video.mp4')
                 pkl_path = video_dir.joinpath('tag_detection.pkl')
                 if pkl_path.is_file():
