@@ -257,9 +257,8 @@ def main(input, output, tcp_offset, tx_slam_tag,
     unused_videos = set(video_meta_df.index) - used_videos
     for vid_idx in unused_videos:
         print(f"Warning: video {video_meta_df.loc[vid_idx]['video_dir'].name} unused in any demo")
-
-
-# %% stage 3
+    
+    # %% stage 3
     # generate dataset plan
     # output
     # all_plans = [{
@@ -335,7 +334,7 @@ def main(input, output, tcp_offset, tx_slam_tag,
         all_cam_poses = list()
         all_gripper_widths = list()
         all_is_valid = list()
-
+        
         for cam_idx, row in demo_video_meta_df.iterrows():
             if cam_idx >= n_gripper_cams:
                 # not gripper camera
