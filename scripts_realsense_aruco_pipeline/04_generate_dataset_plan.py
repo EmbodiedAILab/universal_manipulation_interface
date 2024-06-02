@@ -452,6 +452,83 @@ def main(input, output, tcp_offset, tx_slam_tag,
             all_gripper_widths.append(this_gripper_widths)
             all_is_valid.append(is_step_valid)
 
+        if len(all_cam_poses) != n_gripper_cams:
+            print(f"Skipped demo {demo_idx}.")
+            n_dropped_demos += 1
+            continue
+
+        # aggregate valid result
+        all_is_valid = np.array(all_is_valid)
+        is_step_valid = np.all(all_is_valid, axis=0)
+        
+        # generate episode start and end pose for each gripper
+        first_valid_step = np.nonzero(is_step_valid)[0][0]
+        last_valid_step = np.nonzero(is_step_valid)[0][-1]
+        demo_start_poses = list()
+        demo_end_poses = list()
+        for cam_idx in range(len(all_cam_poses)):
+            cam_poses = all_cam_poses[cam_idx]
+            demo_start_poses.append(cam_poses[first_valid_step])
+            demo_end_poses.append(cam_poses[last_valid_step])
+
+        # determine episode segmentation
+        # remove valid segments that are too short
+        segment_slices, segment_type = get_bool_segments(is_step_valid)
+        for s, is_valid_segment in zip(segment_slices, segment_type):
+            start = s.start
+            end = s.stop
+            if not is_valid_segment:
+                continue
+            if (end - start) < min_episode_length:
+                is_step_valid[start:end] = False
+        
+        # finally, generate one episode for each valid segment
+        segment_slices, segment_type = get_bool_segments(is_step_valid)
+        for s, is_valid in zip(segment_slices, segment_type):
+            if not is_valid:
+                continue
+            start = s.start
+            end = s.stop
+
+            total_used_time += float((end - start) * dt)
+            
+            grippers = list()
+            cameras = list()
+            for cam_idx, row in demo_video_meta_df.iterrows():
+                if cam_idx < n_gripper_cams:
+                    pose_tag_tcp = all_cam_poses[cam_idx][start:end]
+                    
+                    # gripper cam
+                    grippers.append({
+                        "tcp_pose": pose_tag_tcp,
+                        "gripper_width": all_gripper_widths[cam_idx][start:end],
+                        "demo_start_pose": demo_start_poses[cam_idx],
+                        "demo_end_pose": demo_end_poses[cam_idx]
+                    })
+                # all cams
+                video_dir = row['video_dir']
+                vid_start_frame = cam_start_frame_idxs[cam_idx]
+                cameras.append({
+                    "video_path": str(video_dir.joinpath('raw_video.mp4').relative_to(video_dir.parent)),
+                    "video_start_end": (start+vid_start_frame, end+vid_start_frame)
+                })
+            
+            all_plans.append({
+                "episode_timestamps": demo_timestamps[start:end],
+                "grippers": grippers,
+                "cameras": cameras
+            })
+
+    used_ratio = total_used_time / total_avaliable_time
+    print(f"{int(used_ratio*100)}% of raw data are used.")
+
+    print(dropped_camera_count)
+    print("n_dropped_demos", n_dropped_demos)
+
+    # %%
+    # dump the plan to pickle
+    pickle.dump(all_plans, output.open('wb'))
+
 ## %%
 if __name__ == "__main__":
     main()
