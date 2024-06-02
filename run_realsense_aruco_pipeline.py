@@ -77,10 +77,9 @@ def main(session_dir, calibration_dir):
         ]
         result = subprocess.run(cmd)
         assert result.returncode == 0
-        return
 
-        print("############# 06_generate_dataset_plan ###########")
-        script_path = script_dir.joinpath("06_generate_dataset_plan.py")
+        print("############# 04_generate_dataset_plan ###########")
+        script_path = script_dir.joinpath("04_generate_dataset_plan.py")
         assert script_path.is_file()
         cmd = [
             'python', str(script_path),
