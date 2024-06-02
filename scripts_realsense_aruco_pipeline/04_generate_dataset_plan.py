@@ -258,6 +258,84 @@ def main(input, output, tcp_offset, tx_slam_tag,
     for vid_idx in unused_videos:
         print(f"Warning: video {video_meta_df.loc[vid_idx]['video_dir'].name} unused in any demo")
 
+
+# %% stage 3
+    # generate dataset plan
+    # output
+    # all_plans = [{
+    #     "episode_timestamps": np.ndarray,
+    #     "grippers": [{
+    #         "tcp_pose": np.ndarray,
+    #         "gripper_width": np.ndarray
+    #     }],
+    #     "cameras": [{
+    #         "video_path": str,
+    #         "video_start_end": Tuple[int,int]
+    #     }]
+    # }]
+    # 假设系统中只有一个相机
+    n_gripper_cams = 1
+
+    cam_serial_cam_idx_map = dict() 
+    cam_serial_cam_idx_map[cam_serial] = 0  # 如果有多个相机，可能需要修改
+    camera_idx_series = video_meta_df['camera_serial'].map(cam_serial_cam_idx_map)
+    video_meta_df['camera_idx'] = camera_idx_series
+
+    total_avaliable_time = 0.0
+    total_used_time = 0.0
+    dropped_camera_count = collections.defaultdict(lambda: 0)
+    n_dropped_demos = 0
+    all_plans = list()
+    for demo_idx, demo_data in enumerate(demo_data_list):
+        video_idxs = demo_data['video_idxs']
+        start_timestamp = demo_data['start_timestamp']
+        end_timestamp = demo_data['end_timestamp']
+        total_avaliable_time += (end_timestamp - start_timestamp)
+
+        # select relevant video data
+        demo_video_meta_df = video_meta_df.loc[video_idxs].copy()
+        # TODO 1
+        demo_video_meta_df.set_index('camera_idx', inplace=True)
+        demo_video_meta_df.sort_index(inplace=True)
+        
+        # determine optimal alignment
+        dt = None
+        alignment_costs = list()
+        for cam_idx, row in demo_video_meta_df.iterrows():
+            dt = 1 / row['fps']
+            this_alignment_cost = list()
+            for other_cam_idx, other_row in demo_video_meta_df.iterrows():
+                # what's the delay for previous frame
+                diff = other_row['start_timestamp'] - row['start_timestamp']
+                remainder = diff % dt
+                this_alignment_cost.append(remainder)
+            alignment_costs.append(this_alignment_cost)
+        # first video in bundle
+        align_cam_idx = np.argmin([sum(x) for x in alignment_costs])
+
+        # rewrite start_timestamp to be integer multiple of dt
+        align_video_start = demo_video_meta_df.loc[align_cam_idx]['start_timestamp']
+        start_timestamp += dt - ((start_timestamp - align_video_start) % dt)
+
+        # descritize timestamps for all videos
+        cam_start_frame_idxs = list()
+        n_frames = int((end_timestamp - start_timestamp) / dt)
+        for cam_idx, row in demo_video_meta_df.iterrows():
+            video_start_frame = math.ceil((start_timestamp - row['start_timestamp']) / dt)
+            video_n_frames = math.floor((row['end_timestamp'] - start_timestamp) / dt) - 1
+            if video_start_frame < 0:
+                video_n_frames += video_start_frame
+                video_start_frame = 0
+            cam_start_frame_idxs.append(video_start_frame)
+            n_frames = min(n_frames, video_n_frames)
+        demo_timestamps = np.arange(n_frames) * float(dt) + start_timestamp
+
+        # load pose and gripper data for each video
+        # determin valid frames for each video
+        all_cam_poses = list()
+        all_gripper_widths = list()
+        all_is_valid = list()
+
 ## %%
 if __name__ == "__main__":
     main()
