@@ -18,8 +18,9 @@ import subprocess
 @click.command()
 @click.argument('session_dir', nargs=-1)
 def main(session_dir):
-    pass
-            
+    for session in session_dir:
+        print(f'not implemented in generate trajectory in {session}')
+
 # %%
 if __name__ == "__main__":
     main()
