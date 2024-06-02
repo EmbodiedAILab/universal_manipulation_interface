@@ -122,7 +122,68 @@ def main(input, output, tcp_offset, tx_slam_tag,
             gripper_id_gripper_cal_map[gripper_id] = gripper_cal_interp
             cam_serial_gripper_cal_map[cam_serial] = gripper_cal_interp
 
-   
+    # %% stage 1
+    # loop over all demo directory to extract video metadata
+    # output: video_meta_df
+    
+    # find videos
+    video_dirs = sorted([x.parent for x in demos_dir.glob('demo_*/raw_video.mp4')])
+
+    # ignore camera，在多相机模式下，可以指定忽略的相机
+    ignore_cam_serials = set()
+    if ignore_cameras is not None:
+        serials = ignore_cameras.split(',')
+        ignore_cam_serials = set(serials)
+    
+    fps = None
+    rows = list()
+    with ExifToolHelper() as et:
+        for video_dir in video_dirs:            
+            mp4_path = video_dir.joinpath('raw_video.mp4')
+            # TODO：这个在存储视频的时候需要保存，函数的实现需要修改
+            start_date = mp4_get_start_datetime(str(mp4_path))
+            start_timestamp = start_date.timestamp()
+            # start_timestamp = 1704855454.882133     # read from the video
+
+            if cam_serial in ignore_cam_serials:
+                print(f"Ignored {video_dir.name}")
+                continue
+            
+            csv_path = video_dir.joinpath('camera_trajectory.csv')
+            if not csv_path.is_file():
+                print(f"Ignored {video_dir.name}, no camera_trajectory.csv")
+                continue
+            
+            pkl_path = video_dir.joinpath('tag_detection.pkl')
+            if not pkl_path.is_file():
+                print(f"Ignored {video_dir.name}, no tag_detection.pkl")
+                continue
+            
+            with av.open(str(mp4_path), 'r') as container:
+                stream = container.streams.video[0]
+                n_frames = stream.frames
+                if fps is None:
+                    fps = stream.average_rate
+                else:
+                    if fps != stream.average_rate:
+                        print(f"Inconsistent fps: {float(fps)} vs {float(stream.average_rate)} in {video_dir.name}")
+                        exit(1)
+            duration_sec = float(n_frames / fps)
+            end_timestamp = start_timestamp + duration_sec
+            
+            rows.append({
+                'video_dir': video_dir,
+                'camera_serial': cam_serial,
+                'n_frames': n_frames,
+                'fps': fps,
+                'start_timestamp': start_timestamp,
+                'end_timestamp': end_timestamp
+            })
+    if len(rows) == 0:
+        print("No valid videos found!")
+        exit(1)
+            
+    video_meta_df = pd.DataFrame(data=rows)
 
 ## %%
 if __name__ == "__main__":
