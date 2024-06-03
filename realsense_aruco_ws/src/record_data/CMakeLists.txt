@@ -9,6 +9,8 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
   sensor_msgs
   aruco_ros
+  cv_bridge
+  image_transport
 )
 
 catkin_package(
