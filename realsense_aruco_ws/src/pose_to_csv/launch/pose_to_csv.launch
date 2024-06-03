@@ -1,0 +1,7 @@
+<launch>
+    <node name="pose_to_csv" pkg="pose_to_csv" type="pose_to_csv" output="screen">
+        <param name="pose_topic" value="/aruco_single/pose" />
+        <param name="csv_file_path" value="/home/robot/cwh/universal_manipulation_interface/realsense_aruco_ws/pose.csv" />
+    </node>
+</launch>
+
