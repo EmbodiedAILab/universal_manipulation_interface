@@ -23,7 +23,6 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
-
-add_executable(video_and_traj_recorde src/video_and_traj_recorde.cpp)
-add_dependencies(video_and_traj_recorde ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(video_and_traj_recorde ${catkin_LIBRARIES})
+add_executable(video_traj_recorder src/video_traj_recorder.cpp)
+add_dependencies(video_traj_recorder ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(video_traj_recorder ${catkin_LIBRARIES})
