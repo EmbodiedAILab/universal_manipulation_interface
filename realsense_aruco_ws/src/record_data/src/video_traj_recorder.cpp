@@ -1,16 +1,22 @@
+#include <cmath>
+#include <fstream>
+#include <chrono>
+
+#include <boost/filesystem.hpp>
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+
 #include <ros/ros.h>
 #include <ros/package.h>
 #include <sensor_msgs/Image.h>
+#include <tf2/convert.h>
+#include <tf2_eigen/tf2_eigen.h>
+#include <tf/transform_listener.h>
 #include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
 #include <geometry_msgs/PoseStamped.h>
-#include <fstream>
-#include <boost/filesystem.hpp>
-#include <chrono>
-#include <termios.h>
-#include <unistd.h>
-#include <fcntl.h>
 
 using namespace std;
 
@@ -18,6 +24,14 @@ class VideoTrajRecorder
 {
 public:
     VideoTrajRecorder() : it_(nh_) {
+        geometry_msgs::Pose egoCamera2ArucoPose;
+        // 根据自己的硬件来调整该参数
+        egoCamera2ArucoPose.position.x = 0;
+        egoCamera2ArucoPose.position.y = -0.195;
+        egoCamera2ArucoPose.position.z = 0.230;
+        egoCamera2ArucoPose.orientation = tf::createQuaternionMsgFromRollPitchYaw(-M_PI_2 - 0.5, 0, 0);
+        tf2::convert(egoCamera2ArucoPose, egoCamera2ArucoMatrix_);
+
         egoCameraSub_ = it_.subscribe("ego_camera_topic", 1, &VideoTrajRecorder::egoCameraCallback, this);
         extCameraSub_ = it_.subscribe("ext_camera_topic", 1, &VideoTrajRecorder::extCameraCallback, this);
         arucoPoseSub_ = nh_.subscribe("aruco_pose_topic", 1, &VideoTrajRecorder::arucoPoseCallback, this);
@@ -138,6 +152,11 @@ private:
     sensor_msgs::ImageConstPtr egoImagePtr_;
     sensor_msgs::ImageConstPtr extImagePtr_;
 
+    Eigen::Affine3d egoCamera2ArucoMatrix_;
+    Eigen::Affine3d aruco2ExtCameraMatrix_;
+    Eigen::Affine3d egoCamera2ExtCameraMatrix_;
+    geometry_msgs::Pose egoCamera2ExtCameraPose_;
+
     const string CAMERA_ID = "C123456";
 
     int kbhit()
@@ -196,15 +215,20 @@ private:
             arucoPoseFlag_ = true;
         }
 
+        // 记录ego camera相对于ext camera的位姿，而不是aruco相对于ext camera的位姿
+        tf2::convert(msg->pose, aruco2ExtCameraMatrix_);
+        egoCamera2ExtCameraMatrix_ = aruco2ExtCameraMatrix_ * egoCamera2ArucoMatrix_;
+        tf2::convert(egoCamera2ExtCameraMatrix_, egoCamera2ExtCameraPose_);
+        
         frameIdx_++;
         double timestamp = msg->header.stamp.toSec() - firstTimestamp_;
-        double x = msg->pose.position.x;
-        double y = msg->pose.position.y;
-        double z = msg->pose.position.z;
-        double q_x = msg->pose.orientation.x;
-        double q_y = msg->pose.orientation.y;
-        double q_z = msg->pose.orientation.z;
-        double q_w = msg->pose.orientation.w;
+        double x = egoCamera2ExtCameraPose_.position.x;
+        double y = egoCamera2ExtCameraPose_.position.y;
+        double z = egoCamera2ExtCameraPose_.position.z;
+        double q_x = egoCamera2ExtCameraPose_.orientation.x;
+        double q_y = egoCamera2ExtCameraPose_.orientation.y;
+        double q_z = egoCamera2ExtCameraPose_.orientation.z;
+        double q_w = egoCamera2ExtCameraPose_.orientation.w;
 
         csvFile_ << frameIdx_ << ","
                   << std::fixed << std::setprecision(6) << timestamp << ","

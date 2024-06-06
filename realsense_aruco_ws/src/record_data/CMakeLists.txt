@@ -6,16 +6,16 @@ find_package (OpenCV 4.0.0 REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  message_generation
   sensor_msgs
   aruco_ros
   cv_bridge
   image_transport
+  tf2_ros
 )
 
 catkin_package(
  INCLUDE_DIRS include
- CATKIN_DEPENDS roscpp aruco_ros message_runtime
+ CATKIN_DEPENDS roscpp aruco_ros
 )
 include_directories ("/usr/include/opencv4/")
 include_directories(
