@@ -6,6 +6,7 @@
 #include <image_transport/image_transport.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <fstream>
+#include <boost/filesystem.hpp>
 #include <chrono>
 #include <termios.h>
 #include <unistd.h>
@@ -43,6 +44,19 @@ public:
             ros::Duration(1.0).sleep();
         }
         startRecord_ = false;
+
+        // 查看data_folder是否存在
+        boost::filesystem::path dataFolderPath = ros::package::getPath("record_data") + "/data_folder";
+        if (!boost::filesystem::exists(dataFolderPath)) {
+            ROS_WARN_STREAM(dataFolderPath << "doesn't exist, create it");
+            // 创建 data_folder 文件夹
+            if (boost::filesystem::create_directory(dataFolderPath)) {
+                ROS_WARN_STREAM(dataFolderPath << "has been created successfully.");
+            } else {
+                ROS_WARN_STREAM("Failed to create the" << dataFolderPath);
+                ros::shutdown();
+            }
+        }
 
         // 通过键盘控制开始或者结束
         ROS_INFO("Ready to record video and trajectory");
