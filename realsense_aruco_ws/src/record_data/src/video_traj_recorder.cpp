@@ -60,14 +60,14 @@ public:
                     std::stringstream ss;
                     ss << std::put_time(std::localtime(&currentTime), "%Y-%m-%d_%H-%M-%S");
 
-                    videoPath_ = ros::package::getPath("record_data") + "/data/ego_" + ss.str() + ".mp4";
+                    videoPath_ = ros::package::getPath("record_data") + "/data_folder/ego_" + ss.str() + ".mp4";
                     videoWriter_.open(videoPath_, cv::VideoWriter::fourcc('m', 'p', '4', 'v'), imageFrequency, cv::Size(egoImagePtr_->width, egoImagePtr_->height), true);
                     if (!videoWriter_.isOpened()) {
                         ROS_ERROR("Failed to open video writer");
                         ros::shutdown();
                     }
 
-                    csvFilePath_ = ros::package::getPath("record_data") + "/data/" + ss.str() + ".csv";
+                    csvFilePath_ = ros::package::getPath("record_data") + "/data_folder/" + ss.str() + ".csv";
                     csvFile_.open(csvFilePath_);
                     if (!csvFile_.is_open()) {
                         ROS_ERROR("Failed to open file: %s", csvFilePath_.c_str());
