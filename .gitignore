@@ -174,3 +174,6 @@ cython_debug/
 #.idea/
 
 *.ckpt
+
+realsense_aruco_ws/src/umi_control/output_link_traj/*
+
