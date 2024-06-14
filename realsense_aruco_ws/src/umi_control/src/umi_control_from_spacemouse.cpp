@@ -18,6 +18,10 @@
 #include <moveit/planning_interface/planning_interface.h>
 #include "moveit/robot_model_loader/robot_model_loader.h"
 
+#include <fstream>       
+#include <iomanip>       
+#include <sstream>      
+
 using namespace std;
 
 struct O3DELinkInfo {
@@ -49,22 +53,25 @@ public:
                       robotModel_(robotModelLoader_.getModel()),
                       robotState_(new robot_state::RobotState(robotModel_)),
                       jointModelGroup_(robotState_->getJointModelGroup("arm")),
-                      moveGroup_("arm")
+                      moveGroup_("arm"),
+                      frameCount_(0.0)
     {
         jointPosPub_ = nh_.advertise<sensor_msgs::JointState>("move_group/fake_controller_joint_states", 1);
         baseFrame_ = moveGroup_.getPoseReferenceFrame();
         eefFrame_ = moveGroup_.getEndEffectorLink();
         jointNames_ = moveGroup_.getVariableNames();
         linkWithGeos_ = robotModel_->getLinkModelNamesWithCollisionGeometry();
+        outputPath_ = "/home/robot/cwh/universal_manipulation_interface/realsense_aruco_ws/src/umi_control/output_link_traj/";
         
         bool isTest = true;
         if (isTest == false) {
-            spaceMouseSub_ = nh_.subscribe("spacenav/joy", 1, &UmiController::spaceMouseCallback, this);
-            while (ros::ok() && !spaceMouseFlag_) {
-                ROS_ERROR_STREAM("Waiting for space mouse, and the topic name you specified is " << spaceMouseSub_.getTopic());
-                ros::Duration(1.0).sleep();
-            }
-            ROS_WARN("Space Mouse Message Detected");
+            spaceMouseSub_ = nh_.subscribe("/spacenav/joy", 1, &UmiController::spaceMouseCallback, this);
+            ROS_INFO("Subscribed to /spacenav/joy");
+            // while (ros::ok() && !spaceMouseFlag_) {
+            //     ROS_ERROR_STREAM("Waiting for space mouse, and the topic name you specified is " << spaceMouseSub_.getTopic());
+            //     ros::Duration(1.0).sleep();
+            // }
+            // ROS_WARN("Space Mouse Message Detected");
         } else {
             double controlFrequency = 30;
             ros::Time startTime = ros::Time::now();
@@ -136,16 +143,21 @@ private:
     bool spaceMouseFlag_ = false;
     ros::Time lastSpaceMouseTime_;
     geometry_msgs::Twist eefTwist_;
-    const double TRANS_VEL = 0.5;   // 末端的线速度映射系数
-    const double ROTAT_VEL = 0.5;   // 末端的角速度映射系数
+    const double TRANS_VEL = 0.3;   // 末端的线速度映射系数
+    const double ROTAT_VEL = 0.6;   // 末端的角速度映射系数
     const double MAX_TIMEOUT = 0.2; // spaceMouse最大的超时时间，因此注意spaceMouse的数据频率不能太低
     sensor_msgs::JointState jointStatesMsgs_;
     string baseFrame_;
     string eefFrame_;
     vector<string> jointNames_;
     vector<string> linkWithGeos_;
+    double frameCount_;
+    std::string outputPath_;
+
 
     void spaceMouseCallback(const sensor_msgs::JoyConstPtr& joyPtr) {
+        ROS_INFO("SpaceMouse callback triggered");
+        std::cout << "in mouse callback" << std::endl;
         if (spaceMouseFlag_ == false) {
             spaceMouseFlag_ = true;
             lastSpaceMouseTime_ = joyPtr->header.stamp;
@@ -155,6 +167,9 @@ private:
         if (joyPtr->axes.size() != 6) {
             ROS_ERROR("Data size from space mouse is wrong");
         }
+
+        ROS_INFO("after calculation, %lu", ros::Time::now().toNSec()/1000000);
+
         if (!getTargetJointPositionsFromJoy(joyPtr)) {
             return;
         }
@@ -172,9 +187,10 @@ private:
     }
 
     bool getTargetJointPositionsFromJoy(const sensor_msgs::JoyConstPtr& joyPtr, bool twistRelative2Base = true) {
+        ROS_INFO("In calculate target");
         double duration = (joyPtr->header.stamp - lastSpaceMouseTime_).toSec();
         duration = duration > MAX_TIMEOUT ? MAX_TIMEOUT : duration;
-
+        // ROS_INFO("1");
         eefTwist_.linear.x = eefTwist_.linear.y = eefTwist_.linear.z = 0;
         eefTwist_.angular.x = eefTwist_.angular.y = eefTwist_.angular.z = 0;
         
@@ -183,9 +199,9 @@ private:
         eefTwist_.linear.x = joyPtr->axes[0] * TRANS_VEL;
         eefTwist_.linear.y = joyPtr->axes[1] * TRANS_VEL;
         eefTwist_.linear.z = joyPtr->axes[2] * TRANS_VEL;
-        eefTwist_.angular.x = joyPtr->axes[0] * ROTAT_VEL;
-        eefTwist_.angular.y = joyPtr->axes[1] * ROTAT_VEL;
-        eefTwist_.angular.z = joyPtr->axes[2] * ROTAT_VEL;
+        eefTwist_.angular.x = joyPtr->axes[3] * ROTAT_VEL;
+        eefTwist_.angular.y = joyPtr->axes[4] * ROTAT_VEL;
+        eefTwist_.angular.z = joyPtr->axes[5] * ROTAT_VEL;
 
         // 如果是相对基座坐标系运动，则需要将速度映射成末端。因为在setFromDiffIK中，eefTwist_是末端相对末端的速度
         if (twistRelative2Base) {
@@ -198,10 +214,8 @@ private:
             angular.x() = eefTwist_.angular.x;
             angular.y() = eefTwist_.angular.y;
             angular.z() = eefTwist_.angular.z;
-
             linear = eef2BaseRotationMatrix.transpose() * linear;
             angular = eef2BaseRotationMatrix.transpose() * angular;
-
             eefTwist_.linear.x = linear.x();
             eefTwist_.linear.y = linear.y();
             eefTwist_.linear.z = linear.z();
@@ -214,7 +228,7 @@ private:
             ROS_ERROR("Failed to get IK");
             return false;
         }
-        
+
         jointStatesMsgs_.header.stamp = ros::Time::now();
         jointStatesMsgs_.header.frame_id = baseFrame_;
         jointStatesMsgs_.name.resize(6);
@@ -223,6 +237,10 @@ private:
         jointStatesMsgs_.effort.resize(6);
         jointStatesMsgs_.name = jointNames_;
         robotState_->copyJointGroupPositions(jointModelGroup_, jointStatesMsgs_.position); 
+        jointPosPub_.publish(jointStatesMsgs_);
+        ROS_INFO("publish done");
+
+        createO3DELinksInfo();
         return true;
     }
 
@@ -251,11 +269,29 @@ private:
 
     vector<O3DELinkInfo> createO3DELinksInfo() {
         vector<O3DELinkInfo> o3deLinksInfo;
-        for (auto link : linkWithGeos_) {
-            o3deLinksInfo.push_back(createO3DELinkInfo(link, robotState_->getFrameTransform(link)));
+
+        // 生成文件名
+        std::stringstream ss;
+        ss << outputPath_ << "data_" << std::fixed << std::setprecision(1) << frameCount_++ << ".txt";
+        std::ofstream file(ss.str());
+
+        if (!file.is_open()) {
+            ROS_ERROR("Failed to open file.");
+            return o3deLinksInfo;
         }
+
+        // 写入每个link的信息到文件
+        for (auto link : linkWithGeos_) {
+            O3DELinkInfo info = createO3DELinkInfo(link, robotState_->getFrameTransform(link));
+            o3deLinksInfo.push_back(info);
+            file << info.linkName << ":" 
+                << info.x << "," << info.y << "," << info.z << "," 
+                << info.qw << "," << info.qx << "," << info.qy << "," << info.qz << " ";
+        }
+
+        file.close();
         return o3deLinksInfo;
-    }
+    }   
 
     O3DELinkInfo createO3DELinkInfo(const string& linkName, const Eigen::Affine3d& matrix) {
         O3DELinkInfo linkInfo;
@@ -277,10 +313,9 @@ private:
 int main(int argc, char *argv[])
 {
     ros::init(argc, argv, "umi_controller");
-    ros::AsyncSpinner spinner(1);
+    ros::AsyncSpinner spinner(2);
     spinner.start();
     UmiController umiController;
-    spinner.stop();
-    ros::shutdown();
+    ros::waitForShutdown();
     return 0;
 }
