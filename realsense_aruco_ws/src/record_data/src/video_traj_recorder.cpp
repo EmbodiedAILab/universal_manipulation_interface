@@ -72,10 +72,6 @@ public:
 
         // 查找编码器
         codec = avcodec_find_encoder(AV_CODEC_ID_MPEG4);
-        if (!codec) {
-            ROS_ERROR("Codec not found");
-            return ;
-        }
 
         // 创建视频流
         video_stream = avformat_new_stream(fmt_ctx, codec);
@@ -101,7 +97,6 @@ public:
         codec_ctx->coder_type = AVMEDIA_TYPE_VIDEO;
         codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
         ROS_INFO("codec_id: %d, pix_fmt: %d", codec_ctx->codec_id, codec_ctx->pix_fmt);
-
         if (fmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
             codec_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
@@ -114,7 +109,7 @@ public:
         
         ROS_INFO("codec_type: %d, delay: %d", video_stream->codecpar->codec_type, video_stream->codecpar->video_delay);
 
-                // 打开编码器
+        // 打开编码器
         if (avcodec_open2(codec_ctx, codec, nullptr) < 0) {
             ROS_ERROR("Could not open codec");
             return ;
@@ -180,7 +175,7 @@ public:
         frame->height = codec_ctx->height;
 
         if (av_frame_get_buffer(frame, 32) < 0) {
-            ROS_ERROR("Could not allocate the video frame data");   
+            ROS_ERROR("Could not allocate the video frame data");
             return ;
         }
 
@@ -362,7 +357,7 @@ public:
     }
 
     ~VideoTrajRecorder() {
-        videoWriter_.release(); 
+        videoWriter_.release();
         // videoWriter_.close();
         if (csvFile_.is_open()) {
             csvFile_.close();
