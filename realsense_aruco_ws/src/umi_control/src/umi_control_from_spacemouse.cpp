@@ -54,7 +54,9 @@ public:
                       robotState_(new robot_state::RobotState(robotModel_)),
                       jointModelGroup_(robotState_->getJointModelGroup("arm")),
                       moveGroup_("arm"),
-                      frameCount_(0.0)
+                      frameCount_(0.0),
+                      leftFingerPosition_(-0.04),
+                      rightFingerPosition_(-0.04)
     {
         jointPosPub_ = nh_.advertise<sensor_msgs::JointState>("move_group/fake_controller_joint_states", 1);
         baseFrame_ = moveGroup_.getPoseReferenceFrame();
@@ -63,7 +65,7 @@ public:
         linkWithGeos_ = robotModel_->getLinkModelNamesWithCollisionGeometry();
         outputPath_ = "/home/robot/cwh/universal_manipulation_interface/realsense_aruco_ws/src/umi_control/output_link_traj/";
         
-        bool isTest = true;
+        bool isTest = false;
         if (isTest == false) {
             spaceMouseSub_ = nh_.subscribe("/spacenav/joy", 1, &UmiController::spaceMouseCallback, this);
             ROS_INFO("Subscribed to /spacenav/joy");
@@ -153,7 +155,11 @@ private:
     vector<string> linkWithGeos_;
     double frameCount_;
     std::string outputPath_;
-
+    double leftFingerPosition_;
+    double rightFingerPosition_;
+    const double maxFingerPosition_ = 0; // 最大开合值
+    const double minFingerPosition_ = -0.04; // 最小开合值
+    const double fingerStep_ = 0.01; // 每次移动的步长
 
     void spaceMouseCallback(const sensor_msgs::JoyConstPtr& joyPtr) {
         ROS_INFO("SpaceMouse callback triggered");
@@ -174,13 +180,13 @@ private:
             return;
         }
         // 根据按钮决定夹爪的开关
-        if (joyPtr->axes[0] > 0)    // 夹爪打开的条件，按需修改
+        if (joyPtr->buttons[1] > 0)
         {
-            openGripper();
+            openGripperOneStep();
         }
-        if (joyPtr->axes[1] > 0)    // 夹爪关闭的条件，按需修改
+        if (joyPtr->buttons[0] > 0)
         {
-            closeGripper();
+            closeGripperOneStep();
         }
 
         lastSpaceMouseTime_ = joyPtr->header.stamp;
@@ -190,7 +196,7 @@ private:
         ROS_INFO("In calculate target");
         double duration = (joyPtr->header.stamp - lastSpaceMouseTime_).toSec();
         duration = duration > MAX_TIMEOUT ? MAX_TIMEOUT : duration;
-        // ROS_INFO("1");
+
         eefTwist_.linear.x = eefTwist_.linear.y = eefTwist_.linear.z = 0;
         eefTwist_.angular.x = eefTwist_.angular.y = eefTwist_.angular.z = 0;
         
@@ -244,7 +250,6 @@ private:
         return true;
     }
 
-    // 现在夹爪的开关还比较粗暴，后期可以优化
     void openGripper() {
         jointStatesMsgs_.name.push_back("left_finger_joint");
         jointStatesMsgs_.name.push_back("right_finger_joint");
@@ -254,6 +259,7 @@ private:
         jointStatesMsgs_.velocity.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
+        jointPosPub_.publish(jointStatesMsgs_);
     }
 
     void closeGripper() {
@@ -265,6 +271,31 @@ private:
         jointStatesMsgs_.velocity.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
+        jointPosPub_.publish(jointStatesMsgs_);
+    }
+
+    void openGripperOneStep() {
+        leftFingerPosition_ = std::max(leftFingerPosition_ - fingerStep_, minFingerPosition_);
+        rightFingerPosition_ = std::max(rightFingerPosition_ - fingerStep_, minFingerPosition_);
+        updateGripper();
+    }
+
+    void closeGripperOneStep() {
+        leftFingerPosition_ = std::min(leftFingerPosition_ + fingerStep_, maxFingerPosition_);
+        rightFingerPosition_ = std::min(rightFingerPosition_ + fingerStep_, maxFingerPosition_);
+        updateGripper();
+    }
+
+    void updateGripper() {
+        jointStatesMsgs_.name.push_back("left_finger_joint");
+        jointStatesMsgs_.name.push_back("right_finger_joint");
+        jointStatesMsgs_.position.push_back(leftFingerPosition_);
+        jointStatesMsgs_.position.push_back(rightFingerPosition_);
+        jointStatesMsgs_.velocity.push_back(0);
+        jointStatesMsgs_.velocity.push_back(0);
+        jointStatesMsgs_.effort.push_back(0);
+        jointStatesMsgs_.effort.push_back(0);
+        jointPosPub_.publish(jointStatesMsgs_);
     }
 
     vector<O3DELinkInfo> createO3DELinksInfo() {
