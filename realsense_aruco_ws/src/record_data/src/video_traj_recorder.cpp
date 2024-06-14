@@ -18,7 +18,190 @@
 #include <image_transport/image_transport.h>
 #include <geometry_msgs/PoseStamped.h>
 
+extern "C" {
+#include <libavformat/avformat.h>
+#include <libavcodec/avcodec.h>
+#include <libavutil/opt.h>
+#include <libswscale/swscale.h>
+}
+
 using namespace std;
+
+class VideoWriter{
+public:
+    VideoWriter(){
+
+    }
+    ~VideoWriter(){
+
+    }
+
+    void open(const char* output_filename) {
+        // 初始化FFmpeg库
+        av_log_set_level(AV_LOG_INFO);
+        //av_register_all();
+
+//        AVFormatContext *fmt_ctx = nullptr;
+//        AVStream *video_stream = nullptr;
+//        AVCodecContext *codec_ctx = nullptr;
+//        AVCodec *codec = nullptr;
+//        AVFrame *frame = nullptr;
+
+//        struct SwsContext *sws_ctx = nullptr;
+
+        const int width = 640;
+        const int height = 480;
+        const int fps = 30;
+
+        // 创建输出格式上下文
+        avformat_alloc_output_context2(&fmt_ctx, nullptr, nullptr, output_filename);
+        if (!fmt_ctx) {
+            ROS_ERROR("Could not create output context");
+            return ;
+        }
+
+        // 查找编码器
+        codec = avcodec_find_encoder(AV_CODEC_ID_H264);
+        if (!codec) {
+            ROS_ERROR("Codec not found");
+            return ;
+        }
+
+        // 创建视频流
+        video_stream = avformat_new_stream(fmt_ctx, codec);
+        if (!video_stream) {
+            ROS_ERROR("Could not create video stream");
+            return ;
+        }
+
+        codec_ctx = avcodec_alloc_context3(codec);
+        if (!codec_ctx) {
+            ROS_ERROR("Could not allocate video codec context");
+            return ;
+        }
+
+        codec_ctx->codec_id = codec->id;
+        codec_ctx->bit_rate = 400000;
+        codec_ctx->width = width;
+        codec_ctx->height = height;
+        codec_ctx->time_base = (AVRational) {1, fps};
+        codec_ctx->framerate = (AVRational) {fps, 1};
+        codec_ctx->gop_size = 10;
+        codec_ctx->max_b_frames = 1;
+        codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
+
+        if (fmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
+            codec_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
+
+        // 打开编码器
+        if (avcodec_open2(codec_ctx, codec, nullptr) < 0) {
+            ROS_ERROR("Could not open codec");
+            return ;
+        }
+
+        video_stream->codecpar->codec_id = fmt_ctx->oformat->video_codec;
+        video_stream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
+        video_stream->codecpar->width = codec_ctx->width;
+        video_stream->codecpar->height = codec_ctx->height;
+        video_stream->codecpar->format = codec_ctx->pix_fmt;
+        video_stream->time_base = codec_ctx->time_base;
+
+        // 打开输出文件
+        if (!(fmt_ctx->oformat->flags & AVFMT_NOFILE)) {
+            if (avio_open(&fmt_ctx->pb, output_filename, AVIO_FLAG_WRITE) < 0) {
+                ROS_ERROR("Could not open output file");
+                return ;
+            }
+        }
+
+        // 写入文件头
+        if (avformat_write_header(fmt_ctx, nullptr) < 0) {
+            ROS_ERROR("Error occurred when writing header");
+            return ;
+        }
+
+        // 添加元数据
+        av_dict_set(&fmt_ctx->metadata, "title", "My Video Title", 0);
+        av_dict_set(&fmt_ctx->metadata, "author", "Author Name", 0);
+        av_dict_set(&fmt_ctx->metadata, "comment", "This is a comment", 0);
+
+        frame = av_frame_alloc();
+        if (!frame) {
+            ROS_ERROR("Could not allocate video frame");
+            return ;
+        }
+        frame->format = codec_ctx->pix_fmt;
+        frame->width = codec_ctx->width;
+        frame->height = codec_ctx->height;
+
+        if (av_frame_get_buffer(frame, 32) < 0) {
+            ROS_ERROR("Could not allocate the video frame data");
+            return ;
+        }
+
+        sws_ctx = sws_getContext(width, height, AV_PIX_FMT_BGR24,
+                                 width, height, AV_PIX_FMT_YUV420P,
+                                 SWS_BILINEAR, nullptr, nullptr, nullptr);
+    }
+
+    bool write(const sensor_msgs::ImageConstPtr& msg) {
+        // 转换BGR到YUV
+        cv_bridge::CvImagePtr cv_ptr;
+        try {
+            cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+        } catch (cv_bridge::Exception& e) {
+            ROS_ERROR("cv_bridge exception: %s", e.what());
+            return false;
+        }
+        cv::Mat img = cv_ptr->image;
+        const int stride[] = {static_cast<int>(img.step[0])};
+        sws_scale(sws_ctx, &img.data, stride, 0, codec_ctx->height, frame->data, frame->linesize);
+
+        frame->pts = av_rescale_q(frame->pts, codec_ctx->time_base, video_stream->time_base);
+
+        // 发送帧到编码器
+        if (avcodec_send_frame(codec_ctx, frame) < 0) {
+            ROS_ERROR("Error sending frame to encoder");
+            return false;
+        }
+
+        // 接收编码后的包
+        AVPacket pkt;
+        while (avcodec_receive_packet(codec_ctx, &pkt) == 0) {
+            av_packet_rescale_ts(&pkt, codec_ctx->time_base, video_stream->time_base);
+            pkt.stream_index = video_stream->index;
+
+            // 写入包到输出文件
+            if (av_interleaved_write_frame(fmt_ctx, &pkt) < 0) {
+                ROS_ERROR("Error while writing video frame");
+                return false;
+            }
+            av_packet_unref(&pkt);
+        }
+        return true;
+    }
+
+    void close(){
+        // 写入文件尾
+        av_write_trailer(fmt_ctx);
+        // 释放资源
+        av_frame_free(&frame);
+        avcodec_free_context(&codec_ctx);
+        avformat_close_input(&fmt_ctx);
+        if (!(fmt_ctx->oformat->flags & AVFMT_NOFILE)) {
+            avio_closep(&fmt_ctx->pb);
+        }
+        avformat_free_context(fmt_ctx);
+        sws_freeContext(sws_ctx);
+    }
+private:
+    AVFormatContext *fmt_ctx = nullptr;
+    AVStream *video_stream = nullptr;
+    AVCodec *codec = nullptr;
+    AVCodecContext *codec_ctx = nullptr;
+    AVFrame *frame = nullptr;
+    struct SwsContext *sws_ctx = nullptr;
+};
 
 class VideoTrajRecorder
 {
@@ -109,7 +292,7 @@ public:
                     ROS_WARN("Record finished");
                     ROS_WARN_STREAM("Video file has been saved to " << videoPath_);
                     ROS_WARN_STREAM("CSV file has been saved to " << csvFilePath_);
-                    videoWriter_.release();
+                    videoWriter_.close();
                     if (csvFile_.is_open()) {
                         csvFile_.close();
                     }
@@ -121,7 +304,7 @@ public:
     }
 
     ~VideoTrajRecorder() {
-        videoWriter_.release();
+        videoWriter_.close();
         if (csvFile_.is_open()) {
             csvFile_.close();
         }
@@ -144,7 +327,8 @@ private:
     std::chrono::system_clock::time_point startTime_;
 
     image_transport::ImageTransport it_;
-    cv::VideoWriter videoWriter_;
+//    cv::VideoWriter videoWriter_;
+    VideoWriter videoWriter_;
     std::string videoPath_;
     std::ofstream csvFile_;
     std::string csvFilePath_;
@@ -241,20 +425,26 @@ private:
         // ROS_INFO("Frame: %d, Time: %.6f, Position: [%.6f, %.6f, %.6f], Orientation: [%.6f, %.6f, %.6f, %.6f]",
         //          frameIdx_, timestamp, x, y, z, q_x, q_y, q_z, q_w);
 
-        try
-        {
-            cv_bridge::CvImagePtr cvPtr = cv_bridge::toCvCopy(egoImagePtr_, sensor_msgs::image_encodings::BGR8);
-            cv::Mat image = cvPtr->image;
-            videoWriter_ << image;
-
-            // 设置视频文件的元数据
-            // updateVideoMetadata(egoImagePtr_, frameCount_);
-            // frameCount_++;
-        }
-        catch (cv_bridge::Exception& e)
-        {
+//        try
+//        {
+//            cv_bridge::CvImagePtr cvPtr = cv_bridge::toCvCopy(egoImagePtr_, sensor_msgs::image_encodings::BGR8);
+//            cv::Mat image = cvPtr->image;
+//            videoWriter_ << image;
+//
+//            // 设置视频文件的元数据
+//            // updateVideoMetadata(egoImagePtr_, frameCount_);
+//            // frameCount_++;
+//        }
+//        catch (cv_bridge::Exception& e)
+//        {
+//            ROS_ERROR("cv_bridge exception: %s", e.what());
+//        }
+        try{
+            videoWriter_.write(egoImagePtr_);
+        }catch (cv_bridge::Exception& e){
             ROS_ERROR("cv_bridge exception: %s", e.what());
         }
+
     }
 
     // 更新视频的元信息，可能需要调整
@@ -264,7 +454,7 @@ private:
         metadata << "Frame Time: " << std::fixed << std::setprecision(6) << imagePtr->header.stamp.toSec() << " | ";
         metadata << "Frame Count: " << frameCount;
         cv::Mat metadata_mat(1, metadata.str().length(), CV_8UC1, (void*)metadata.str().c_str());
-        videoWriter_.write(metadata_mat);
+//        videoWriter_.write(metadata_mat);
     }
 };
 
