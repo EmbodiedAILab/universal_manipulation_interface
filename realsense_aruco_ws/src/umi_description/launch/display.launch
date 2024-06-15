@@ -1,7 +1,9 @@
 
 <launch>
   <param name="robot_description" command="xacro --inorder  '$(find umi_description)/urdf/umi.xacro'"/>
-  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" />
+  <node name="joint_state_publisher_gui" pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" >
+    <param name="rate" value="100" />
+  </node>
   <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find umi_description)/rviz/urdf.rviz"  />
 </launch>
