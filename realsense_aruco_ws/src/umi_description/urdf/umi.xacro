@@ -82,7 +82,7 @@
     <joint name="left_finger_joint" type="prismatic">
         <parent link="hand_link" />
         <child link="left_finger_link" />
-        <origin xyz="0 0.01105 0.108" rpy="0 0 0" />
+        <origin xyz="0 -0.01105 0.108" rpy="0 0 0" />
         <limit effort="100.0" lower="-0.04" upper="0" velocity="0.5"/>
         <axis xyz="1 0 0"/>
     </joint>
@@ -90,7 +90,7 @@
     <joint name="right_finger_joint" type="prismatic">
         <parent link="hand_link" />
         <child link="right_finger_link" />
-        <origin xyz="0 0.01105 0.108" rpy="0 0 0" />
+        <origin xyz="0 -0.01105 0.108" rpy="0 0 0" />
         <limit effort="100.0" lower="-0.04" upper="0" velocity="0.5"/>
         <axis xyz="-1 0 0"/>
     </joint>
