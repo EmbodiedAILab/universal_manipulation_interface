@@ -75,13 +75,14 @@ public:
         jointNames_ = moveGroup_.getVariableNames();
         linkWithGeos_ = robotModel_->getLinkModelNamesWithCollisionGeometry();
         robotState_ = moveGroup_.getCurrentState();
+        // change this path to the desired one
         outputPath_ = ros::package::getPath("umi_control") + "/output_link_traj/";
 
-        bool isTest = true;
+        bool isTest = false;
         if (isTest == false)
         {
-            spaceMouseSub_ = nh_.subscribe("/spacenav/joy", 1, &UmiController::spaceMouseCallback, this);
-            ROS_INFO("Subscribed to /spacenav/joy");
+            spaceMouseSub_ = nh_.subscribe("spacenav/joy", 1, &UmiController::spaceMouseCallback, this);
+            ROS_INFO("Subscribed to spacenav/joy");
         }
         else
         {
@@ -91,30 +92,12 @@ public:
             while (ros::ok())
             {
                 double duration = (ros::Time::now() - startTime).toSec();
-                robotState_->setJointGroupPositions(jointModelGroup_, currentJointValues_);
-                createO3DELinksInfo();
+                updateRobotState();
+                
                 eefTwist_.linear.x = eefTwist_.linear.y = eefTwist_.linear.z = 0;
                 eefTwist_.angular.x = eefTwist_.angular.y = eefTwist_.angular.z = 0;
                 eefTwist_.linear.x = -0.08 * sin(duration);
-
-                Eigen::Matrix3d eef2BaseRotationMatrix = robotState_->getFrameTransform(eefFrame_).rotation();
-                Eigen::Vector3d linear, angular;
-                linear.x() = eefTwist_.linear.x;
-                linear.y() = eefTwist_.linear.y;
-                linear.z() = eefTwist_.linear.z;
-                angular.x() = eefTwist_.angular.x;
-                angular.y() = eefTwist_.angular.y;
-                angular.z() = eefTwist_.angular.z;
-
-                linear = eef2BaseRotationMatrix.transpose() * linear;
-                angular = eef2BaseRotationMatrix.transpose() * angular;
-
-                eefTwist_.linear.x = linear.x();
-                eefTwist_.linear.y = linear.y();
-                eefTwist_.linear.z = linear.z();
-                eefTwist_.angular.x = angular.x();
-                eefTwist_.angular.y = angular.y();
-                eefTwist_.angular.z = angular.z();
+                transformTwist(eefTwist_);
 
                 if (!robotState_->setFromDiffIK(jointModelGroup_, eefTwist_, eefFrame_, 1.0 / controlFrequency))
                 {
@@ -137,7 +120,7 @@ public:
                 {
                     closeGripperOneStep();
                 }
-
+                createO3DELinksInfo();
                 jointPosPub_.publish(jointStatesMsgs_);
 
                 ros::spinOnce();
@@ -187,6 +170,13 @@ private:
     double currentLeftFingerJoint_;
     double currentRightFingerJoint_;
 
+    void updateRobotState()
+    {
+        robotState_->setJointGroupPositions(jointModelGroup_, currentJointValues_);
+        robotState_->setJointPositions("left_finger_joint", &currentLeftFingerJoint_);
+        robotState_->setJointPositions("right_finger_joint", &currentRightFingerJoint_);
+    }
+
     void jointStatesCallback(const sensor_msgs::JointStateConstPtr &jointStatePtr)
     {
         if (jointStatesFlag_ == false)
@@ -209,13 +199,12 @@ private:
 
     void spaceMouseCallback(const sensor_msgs::JoyConstPtr &joyPtr)
     {
-        ROS_INFO("SpaceMouse callback triggered");
-        std::cout << "in mouse callback" << std::endl;
+        // ROS_INFO("SpaceMouse callback triggered");
         if (spaceMouseFlag_ == false)
         {
             spaceMouseFlag_ = true;
             lastSpaceMouseTime_ = joyPtr->header.stamp;
-            return; // 丢弃第一帧
+            return;
         }
         // 假设joyPtr->axes的数据是6维的
         if (joyPtr->axes.size() != 6)
@@ -223,9 +212,7 @@ private:
             ROS_ERROR("Data size from space mouse is wrong");
         }
 
-        ROS_INFO("after calculation, %lu", ros::Time::now().toNSec() / 1000000);
-
-        if (!getTargetJointPositionsFromJoy(joyPtr))
+        if (!updateTargetJointPositionsFromJoy(joyPtr))
         {
             return;
         }
@@ -239,12 +226,14 @@ private:
             closeGripperOneStep();
         }
 
+        createO3DELinksInfo();
+        jointPosPub_.publish(jointStatesMsgs_);
+
         lastSpaceMouseTime_ = joyPtr->header.stamp;
     }
 
-    bool getTargetJointPositionsFromJoy(const sensor_msgs::JoyConstPtr &joyPtr, bool twistRelative2Base = true)
+    bool updateTargetJointPositionsFromJoy(const sensor_msgs::JoyConstPtr &joyPtr, bool twistRelative2Base = true)
     {
-        ROS_INFO("In calculate target");
         double duration = (joyPtr->header.stamp - lastSpaceMouseTime_).toSec();
         duration = duration > maxTimeout_ ? maxTimeout_ : duration;
 
@@ -263,23 +252,7 @@ private:
         // 如果是相对基座坐标系运动，则需要将速度映射成末端。因为在setFromDiffIK中，eefTwist_是末端相对末端的速度
         if (twistRelative2Base)
         {
-            robotState_->setJointGroupPositions(jointModelGroup_, currentJointValues_);
-            Eigen::Matrix3d eef2BaseRotationMatrix = robotState_->getFrameTransform(eefFrame_).rotation();
-            Eigen::Vector3d linear, angular;
-            linear.x() = eefTwist_.linear.x;
-            linear.y() = eefTwist_.linear.y;
-            linear.z() = eefTwist_.linear.z;
-            angular.x() = eefTwist_.angular.x;
-            angular.y() = eefTwist_.angular.y;
-            angular.z() = eefTwist_.angular.z;
-            linear = eef2BaseRotationMatrix.transpose() * linear;
-            angular = eef2BaseRotationMatrix.transpose() * angular;
-            eefTwist_.linear.x = linear.x();
-            eefTwist_.linear.y = linear.y();
-            eefTwist_.linear.z = linear.z();
-            eefTwist_.angular.x = angular.x();
-            eefTwist_.angular.y = angular.y();
-            eefTwist_.angular.z = angular.z();
+            transformTwist(eefTwist_);
         }
 
         if (!robotState_->setFromDiffIK(jointModelGroup_, eefTwist_, eefFrame_, duration))
@@ -296,11 +269,28 @@ private:
         jointStatesMsgs_.effort.resize(armJointNumber_);
         jointStatesMsgs_.name = jointNames_;
         robotState_->copyJointGroupPositions(jointModelGroup_, jointStatesMsgs_.position);
-        jointPosPub_.publish(jointStatesMsgs_);
-        ROS_INFO("publish done");
-
-        createO3DELinksInfo();
         return true;
+    }
+
+    void transformTwist(geometry_msgs::Twist& twist)
+    {
+        robotState_->setJointGroupPositions(jointModelGroup_, currentJointValues_);
+        Eigen::Matrix3d eef2BaseRotationMatrix = robotState_->getFrameTransform(eefFrame_).rotation();
+        Eigen::Vector3d linear, angular;
+        linear.x() = twist.linear.x;
+        linear.y() = twist.linear.y;
+        linear.z() = twist.linear.z;
+        angular.x() = twist.angular.x;
+        angular.y() = twist.angular.y;
+        angular.z() = twist.angular.z;
+        linear = eef2BaseRotationMatrix.transpose() * linear;
+        angular = eef2BaseRotationMatrix.transpose() * angular;
+        twist.linear.x = linear.x();
+        twist.linear.y = linear.y();
+        twist.linear.z = linear.z();
+        twist.angular.x = angular.x();
+        twist.angular.y = angular.y();
+        twist.angular.z = angular.z();   
     }
 
     void openGripper()
@@ -313,7 +303,6 @@ private:
         jointStatesMsgs_.velocity.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
-        jointPosPub_.publish(jointStatesMsgs_);
     }
 
     void closeGripper()
@@ -326,7 +315,6 @@ private:
         jointStatesMsgs_.velocity.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
-        jointPosPub_.publish(jointStatesMsgs_);
     }
 
     void openGripperOneStep()
@@ -353,7 +341,6 @@ private:
         jointStatesMsgs_.velocity.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
-        jointPosPub_.publish(jointStatesMsgs_);
     }
 
     vector<O3DELinkInfo> createO3DELinksInfo()
