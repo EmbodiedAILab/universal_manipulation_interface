@@ -58,9 +58,7 @@ public:
                       robotState_(new robot_state::RobotState(robotModel_)),
                       jointModelGroup_(robotState_->getJointModelGroup("arm")),
                       moveGroup_("arm"),
-                      frameCount_(0.0),
-                      leftFingerPosition_(-0.04),
-                      rightFingerPosition_(-0.04)
+                      frameCount_(0.0)
     {
         currentJointValues_.resize(armJointNumber_);
         robotStateSub_ = nh_.subscribe("joint_states", 1, &UmiController::jointStatesCallback, this);
@@ -97,7 +95,7 @@ public:
                 createO3DELinksInfo();
                 eefTwist_.linear.x = eefTwist_.linear.y = eefTwist_.linear.z = 0;
                 eefTwist_.angular.x = eefTwist_.angular.y = eefTwist_.angular.z = 0;
-                eefTwist_.linear.x = -0.1 * sin(duration);
+                eefTwist_.linear.x = -0.08 * sin(duration);
 
                 Eigen::Matrix3d eef2BaseRotationMatrix = robotState_->getFrameTransform(eefFrame_).rotation();
                 Eigen::Vector3d linear, angular;
@@ -132,13 +130,12 @@ public:
                 jointStatesMsgs_.name = jointNames_;
                 robotState_->copyJointGroupPositions(jointModelGroup_, jointStatesMsgs_.position);
 
-                if (int(duration) % 10 == 0)
+                if (int(duration) % 10 < 5)
                 {
-                    openGripper();
-                }
-                if (int(duration) % 10 == 5)
+                    openGripperOneStep();
+                } else
                 {
-                    closeGripper();
+                    closeGripperOneStep();
                 }
 
                 jointPosPub_.publish(jointStatesMsgs_);
@@ -186,7 +183,9 @@ private:
     double rightFingerPosition_;
     const double maxFingerPosition_ = 0;     // 最大开合值
     const double minFingerPosition_ = -0.04; // 最小开合值
-    const double fingerStep_ = 0.01;         // 每次移动的步长
+    const double fingerStep_ = 0.001;         // 每次移动的步长
+    double currentLeftFingerJoint_;
+    double currentRightFingerJoint_;
 
     void jointStatesCallback(const sensor_msgs::JointStateConstPtr &jointStatePtr)
     {
@@ -204,6 +203,8 @@ private:
         {
             currentJointValues_[i] = jointStatePtr->position[i];
         }
+        currentLeftFingerJoint_ = jointStatePtr->position[6];
+        currentRightFingerJoint_ = jointStatePtr->position[7];
     }
 
     void spaceMouseCallback(const sensor_msgs::JoyConstPtr &joyPtr)
@@ -306,8 +307,8 @@ private:
     {
         jointStatesMsgs_.name.push_back("left_finger_joint");
         jointStatesMsgs_.name.push_back("right_finger_joint");
-        jointStatesMsgs_.position.push_back(-0.04);
-        jointStatesMsgs_.position.push_back(-0.04);
+        jointStatesMsgs_.position.push_back(minFingerPosition_);
+        jointStatesMsgs_.position.push_back(minFingerPosition_);
         jointStatesMsgs_.velocity.push_back(0);
         jointStatesMsgs_.velocity.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
@@ -330,15 +331,15 @@ private:
 
     void openGripperOneStep()
     {
-        leftFingerPosition_ = std::max(leftFingerPosition_ - fingerStep_, minFingerPosition_);
-        rightFingerPosition_ = std::max(rightFingerPosition_ - fingerStep_, minFingerPosition_);
+        leftFingerPosition_ = std::max(currentLeftFingerJoint_ - fingerStep_, minFingerPosition_);
+        rightFingerPosition_ = std::max(currentRightFingerJoint_ - fingerStep_, minFingerPosition_);
         updateGripper();
     }
 
     void closeGripperOneStep()
     {
-        leftFingerPosition_ = std::min(leftFingerPosition_ + fingerStep_, maxFingerPosition_);
-        rightFingerPosition_ = std::min(rightFingerPosition_ + fingerStep_, maxFingerPosition_);
+        leftFingerPosition_ = std::min(currentLeftFingerJoint_ + fingerStep_, maxFingerPosition_);
+        rightFingerPosition_ = std::min(currentRightFingerJoint_ + fingerStep_, maxFingerPosition_);
         updateGripper();
     }
 
