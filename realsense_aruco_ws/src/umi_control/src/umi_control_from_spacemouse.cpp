@@ -79,7 +79,7 @@ public:
         robotState_ = moveGroup_.getCurrentState();
         outputPath_ = ros::package::getPath("umi_control") + "/output_link_traj/";
 
-        bool isTest = false;
+        bool isTest = true;
         if (isTest == false)
         {
             spaceMouseSub_ = nh_.subscribe("/spacenav/joy", 1, &UmiController::spaceMouseCallback, this);
@@ -97,7 +97,7 @@ public:
                 createO3DELinksInfo();
                 eefTwist_.linear.x = eefTwist_.linear.y = eefTwist_.linear.z = 0;
                 eefTwist_.angular.x = eefTwist_.angular.y = eefTwist_.angular.z = 0;
-                eefTwist_.linear.x = -0.2 * sin(duration);
+                eefTwist_.linear.x = -0.1 * sin(duration);
 
                 Eigen::Matrix3d eef2BaseRotationMatrix = robotState_->getFrameTransform(eefFrame_).rotation();
                 Eigen::Vector3d linear, angular;
@@ -171,8 +171,8 @@ private:
     ros::Time lastSpaceMouseTime_;
     geometry_msgs::Twist eefTwist_;
     
-    const double transVel_ = 0.3;       // 末端的线速度映射系数
-    const double rotatVel_ = 0.6;       // 末端的角速度映射系数
+    const double transVel_ = 0.15;      // 末端的线速度映射系数
+    const double rotatVel_ = 0.3;       // 末端的角速度映射系数
     const double maxTimeout_ = 0.2;     // spaceMouse最大的超时时间，因此注意spaceMouse的数据频率不能太低
     const int armJointNumber_ = 6;      // 机械臂关节数量
     
