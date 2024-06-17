@@ -190,30 +190,25 @@ private:
             exit(EXIT_FAILURE);
         }
 
-        memset(&serverAddr_, 0, sizeof(serverAddr_));
-        serverAddr_.sin_family = AF_INET;
-        serverAddr_.sin_addr.s_addr = INADDR_ANY;
-        serverAddr_.sin_port = htons(8080);
-
-        if (bind(udpSocket_, (const struct sockaddr *)&serverAddr_, sizeof(serverAddr_)) < 0)
+        int broadcastEnable = 1;
+        if (setsockopt(udpSocket_, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) < 0)
         {
-            perror("bind failed");
-            close(udpSocket_);
+            perror("setsockopt(SO_BROADCAST) failed");
             exit(EXIT_FAILURE);
         }
 
-        ROS_INFO("UDP server set up and listening on port 8080");
+        memset(&serverAddr_, 0, sizeof(serverAddr_));
+        serverAddr_.sin_family = AF_INET;
+        serverAddr_.sin_addr.s_addr = inet_addr("10.78.114.255"); // Subnet broadcast address
+        serverAddr_.sin_port = htons(8080);
+
+        ROS_INFO("UDP server set up and broadcasting on port 8080");
     }
 
-    void sendDataToClient(const std::string &data, const std::string &clientIP, int clientPort)
+    void sendDataToClients(const std::string &data)
     {
-        memset(&clientAddr_, 0, sizeof(clientAddr_));
-        clientAddr_.sin_family = AF_INET;
-        clientAddr_.sin_port = htons(clientPort);
-        inet_pton(AF_INET, clientIP.c_str(), &clientAddr_.sin_addr);
-
         ssize_t sentBytes = sendto(udpSocket_, data.c_str(), data.size(), MSG_CONFIRM,
-                                   (const struct sockaddr *)&clientAddr_, clientAddrLen_);
+                                (const struct sockaddr *)&serverAddr_, sizeof(serverAddr_));
         if (sentBytes < 0)
         {
             perror("sendto failed");
@@ -411,7 +406,7 @@ private:
         // ROS_INFO("Complete dataToSend: %s", dataToSend.c_str());
 
         ROS_INFO("%s", dataToSend.c_str());
-        sendDataToClient(dataToSend, "127.0.0.1", 8080);
+        sendDataToClients(dataToSend);
         ROS_INFO("send finish");
 
         return o3deLinksInfo;
