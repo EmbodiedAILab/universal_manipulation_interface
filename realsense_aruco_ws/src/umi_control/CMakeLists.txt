@@ -3,6 +3,7 @@ project(umi_control)
 
 add_compile_options(-std=c++11)
 
+find_package(Boost REQUIRED COMPONENTS system)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   geometry_msgs
@@ -26,4 +27,4 @@ include_directories(
 
 add_executable(umi_control_from_spacemouse src/umi_control_from_spacemouse.cpp)
 add_dependencies(umi_control_from_spacemouse ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(umi_control_from_spacemouse ${catkin_LIBRARIES})
+target_link_libraries(umi_control_from_spacemouse ${catkin_LIBRARIES} ${Boost_LIBRARIES})
