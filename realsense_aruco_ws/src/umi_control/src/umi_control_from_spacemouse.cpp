@@ -23,6 +23,9 @@
 #include <iomanip>
 #include <sstream>
 
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 using namespace std;
 
 struct O3DELinkInfo
@@ -77,6 +80,8 @@ public:
         robotState_ = moveGroup_.getCurrentState();
         // change this path to the desired one
         outputPath_ = ros::package::getPath("umi_control") + "/output_link_traj/";
+
+        setupUDPServer();
 
         bool isTest = false;
         if (isTest == false)
@@ -155,6 +160,12 @@ private:
     const double rotatVel_ = 0.3;       // 末端的角速度映射系数
     const double maxTimeout_ = 0.2;     // spaceMouse最大的超时时间，因此注意spaceMouse的数据频率不能太低
     const int armJointNumber_ = 6;      // 机械臂关节数量
+
+    // socket
+    int udpSocket_;
+    struct sockaddr_in serverAddr_;
+    struct sockaddr_in clientAddr_;
+    socklen_t clientAddrLen_ = sizeof(clientAddr_);
     
     string baseFrame_;
     string eefFrame_;
@@ -169,6 +180,45 @@ private:
     const double fingerStep_ = 0.001;         // 每次移动的步长
     double currentLeftFingerJoint_;
     double currentRightFingerJoint_;
+
+    void setupUDPServer()
+    {
+        udpSocket_ = socket(AF_INET, SOCK_DGRAM, 0);
+        if (udpSocket_ < 0)
+        {
+            perror("socket creation failed");
+            exit(EXIT_FAILURE);
+        }
+
+        memset(&serverAddr_, 0, sizeof(serverAddr_));
+        serverAddr_.sin_family = AF_INET;
+        serverAddr_.sin_addr.s_addr = INADDR_ANY;
+        serverAddr_.sin_port = htons(8080);
+
+        if (bind(udpSocket_, (const struct sockaddr *)&serverAddr_, sizeof(serverAddr_)) < 0)
+        {
+            perror("bind failed");
+            close(udpSocket_);
+            exit(EXIT_FAILURE);
+        }
+
+        ROS_INFO("UDP server set up and listening on port 8080");
+    }
+
+    void sendDataToClient(const std::string &data, const std::string &clientIP, int clientPort)
+    {
+        memset(&clientAddr_, 0, sizeof(clientAddr_));
+        clientAddr_.sin_family = AF_INET;
+        clientAddr_.sin_port = htons(clientPort);
+        inet_pton(AF_INET, clientIP.c_str(), &clientAddr_.sin_addr);
+
+        ssize_t sentBytes = sendto(udpSocket_, data.c_str(), data.size(), MSG_CONFIRM,
+                                   (const struct sockaddr *)&clientAddr_, clientAddrLen_);
+        if (sentBytes < 0)
+        {
+            perror("sendto failed");
+        }
+    }
 
     void updateRobotState()
     {
@@ -346,29 +396,24 @@ private:
     vector<O3DELinkInfo> createO3DELinksInfo()
     {
         vector<O3DELinkInfo> o3deLinksInfo;
+        std::string dataToSend;
 
-        // 生成文件名
-        std::stringstream ss;
-        ss << outputPath_ << "data_" << std::fixed << std::setprecision(1) << frameCount_++ << ".txt";
-        std::ofstream file(ss.str());
-
-        if (!file.is_open())
-        {
-            ROS_ERROR("Failed to open file.");
-            return o3deLinksInfo;
-        }
-
-        // 写入每个link的信息到文件
         for (auto link : linkWithGeos_)
         {
             O3DELinkInfo info = createO3DELinkInfo(link, robotState_->getFrameTransform(link));
             o3deLinksInfo.push_back(info);
-            file << info.linkName << ":"
-                 << info.x << "," << info.y << "," << info.z << ","
-                 << info.qw << "," << info.qx << "," << info.qy << "," << info.qz << " ";
+            std::string infoString = info.linkName + ":" +
+                                    std::to_string(info.x) + "," + std::to_string(info.y) + "," + std::to_string(info.z) + "," +
+                                    std::to_string(info.qw) + "," + std::to_string(info.qx) + "," + std::to_string(info.qy) + "," + std::to_string(info.qz);
+            // ROS_INFO("Info for %s: %s", info.linkName.c_str(), infoString.c_str());
+            dataToSend += infoString + " ";
         }
+        // ROS_INFO("Complete dataToSend: %s", dataToSend.c_str());
 
-        file.close();
+        ROS_INFO("%s", dataToSend.c_str());
+        sendDataToClient(dataToSend, "127.0.0.1", 8080);
+        ROS_INFO("send finish");
+
         return o3deLinksInfo;
     }
 
