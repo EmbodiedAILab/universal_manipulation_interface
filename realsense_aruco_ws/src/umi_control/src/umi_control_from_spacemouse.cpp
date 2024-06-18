@@ -25,7 +25,10 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <boost/filesystem.hpp>
+#include <regex>
 
+namespace fs = boost::filesystem;
 using namespace std;
 
 struct O3DELinkInfo
@@ -81,7 +84,10 @@ public:
         // change this path to the desired one
         outputPath_ = ros::package::getPath("umi_control") + "/output_link_traj/";
 
+        // initalize UDP Server
         setupUDPServer();
+        // clear output directory
+        clearOutputDirectory();
 
         bool isTest = false;
         if (isTest == false)
@@ -125,7 +131,7 @@ public:
                 {
                     closeGripperOneStep();
                 }
-                createO3DELinksInfo();
+                saveO3DELinksInfo();
                 jointPosPub_.publish(jointStatesMsgs_);
 
                 ros::spinOnce();
@@ -181,7 +187,7 @@ private:
     double currentLeftFingerJoint_;
     double currentRightFingerJoint_;
 
-    void setupUDPServer()
+    void setupUDPServer()   
     {
         udpSocket_ = socket(AF_INET, SOCK_DGRAM, 0);
         if (udpSocket_ < 0)
@@ -271,7 +277,7 @@ private:
             closeGripperOneStep();
         }
 
-        createO3DELinksInfo();
+        saveO3DELinksInfo();
         jointPosPub_.publish(jointStatesMsgs_);
 
         lastSpaceMouseTime_ = joyPtr->header.stamp;
@@ -388,7 +394,7 @@ private:
         jointStatesMsgs_.effort.push_back(0);
     }
 
-    vector<O3DELinkInfo> createO3DELinksInfo()
+    vector<O3DELinkInfo> sendO3DELinksInfo()
     {
         vector<O3DELinkInfo> o3deLinksInfo;
         std::string dataToSend;
@@ -410,6 +416,77 @@ private:
         ROS_INFO("send finish");
 
         return o3deLinksInfo;
+    }
+
+    vector<O3DELinkInfo> saveO3DELinksInfo() {
+        vector<O3DELinkInfo> o3deLinksInfo;
+
+        maintainFileCount(outputPath_, 30);
+
+        // 生成文件名
+        std::stringstream ss;
+        ss << outputPath_ << "data_" << std::fixed << std::setprecision(1) << frameCount_++ << ".txt";
+        std::ofstream file(ss.str());
+
+        if (!file.is_open()) {
+            ROS_ERROR("Failed to open file.");
+            return o3deLinksInfo;
+        }
+
+        // 写入每个link的信息到文件
+        for (auto link : linkWithGeos_) {
+            O3DELinkInfo info = createO3DELinkInfo(link, robotState_->getFrameTransform(link));
+            o3deLinksInfo.push_back(info);
+            file << info.linkName << ":" 
+                << info.x << "," << info.y << "," << info.z << "," 
+                << info.qw << "," << info.qx << "," << info.qy << "," << info.qz << " ";
+        }
+
+        file.close();
+        return o3deLinksInfo;
+    }   
+
+    static bool compareFiles(const fs::path& a, const fs::path& b) {
+        // 使用正则表达式提取文件名中的数字部分
+        std::regex re("data_(\\d+)\\.0.txt");
+        std::smatch matchA, matchB;
+
+        std::string fileA = a.filename().string();
+        std::string fileB = b.filename().string();
+
+        if (std::regex_search(fileA, matchA, re) && std::regex_search(fileB, matchB, re)) {
+            int numA = std::stoi(matchA[1].str());
+            int numB = std::stoi(matchB[1].str());
+            return numA < numB;
+        }
+        // 如果正则表达式匹配失败，按字母顺序排序
+        return fileA < fileB;
+    }
+
+    void maintainFileCount(const string& path, size_t maxFiles) {
+        // 获取目录下的所有文件
+        vector<fs::path> files;
+        for (const auto& entry : fs::directory_iterator(path)) {
+            if (fs::is_regular_file(entry.status())) {
+                files.push_back(entry.path());
+            }
+        }
+
+        // 如果文件数量超过指定值，删除最老的文件
+        if (files.size() > maxFiles) {
+            sort(files.begin(), files.end(), compareFiles);
+            // cout << "Removing old file: " << files.front().string() << endl;
+            fs::remove(files.front());
+        }
+    }
+
+    // 清除输出目录
+    void clearOutputDirectory() {
+        for (const auto& entry : fs::directory_iterator(outputPath_)) {
+            if (fs::is_regular_file(entry.status())) {
+                fs::remove(entry.path());
+            }
+        }
     }
 
     O3DELinkInfo createO3DELinkInfo(const string &linkName, const Eigen::Affine3d &matrix)
