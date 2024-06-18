@@ -153,14 +153,13 @@ public:
             vector<O3DELinkInfo> linksInfo = getO3DELinksInfo();
             std::stringstream ss;
             for (const auto& link : linksInfo) {
-                ss << link.linkName << ": "
+                ss << link.linkName << ":"
                    << link.x << "," << link.y << "," << link.z << ","
-                   << link.qw << "," << link.qx << "," << link.qy << "," << link.qz << "\n";
+                   << link.qw << "," << link.qx << "," << link.qy << "," << link.qz << " ";
             }
             res.set_content(ss.str(), "text/plain");
         });
 
-        // 启动HTTP服务器，监听8081端口
         svr.listen("0.0.0.0", 65432);
     }
 
