@@ -27,6 +27,7 @@
 #include <arpa/inet.h>
 #include <boost/filesystem.hpp>
 #include <regex>
+#include "httplib.h"
 
 namespace fs = boost::filesystem;
 using namespace std;
@@ -85,9 +86,9 @@ public:
         outputPath_ = ros::package::getPath("umi_control") + "/output_link_traj/";
 
         // initalize UDP Server
-        setupUDPServer();
+        // setupUDPServer();
         // clear output directory
-        clearOutputDirectory();
+        // clearOutputDirectory();
 
         bool isTest = false;
         if (isTest == false)
@@ -138,6 +139,29 @@ public:
                 loopRate.sleep();
             }
         }
+
+        // Start HTTP server thread
+        std::thread server_thread(&UmiController::startHttpServer, this);
+        server_thread.detach();
+    }
+
+    void startHttpServer() {
+        httplib::Server svr;
+
+        // 处理GET请求，返回机器人link位姿信息
+        svr.Get("/robot_pose", [&](const httplib::Request& /*req*/, httplib::Response& res) {
+            vector<O3DELinkInfo> linksInfo = getO3DELinksInfo();
+            std::stringstream ss;
+            for (const auto& link : linksInfo) {
+                ss << link.linkName << ": "
+                   << link.x << "," << link.y << "," << link.z << ","
+                   << link.qw << "," << link.qx << "," << link.qy << "," << link.qz << "\n";
+            }
+            res.set_content(ss.str(), "text/plain");
+        });
+
+        // 启动HTTP服务器，监听8081端口
+        svr.listen("0.0.0.0", 65432);
     }
 
 private:
@@ -277,7 +301,7 @@ private:
             closeGripperOneStep();
         }
 
-        saveO3DELinksInfo();
+        // saveO3DELinksInfo();
         jointPosPub_.publish(jointStatesMsgs_);
 
         lastSpaceMouseTime_ = joyPtr->header.stamp;
@@ -392,6 +416,19 @@ private:
         jointStatesMsgs_.velocity.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
         jointStatesMsgs_.effort.push_back(0);
+    }
+
+    vector<O3DELinkInfo> getO3DELinksInfo()
+    {
+        vector<O3DELinkInfo> o3deLinksInfo;
+
+        for (auto link : linkWithGeos_)
+        {
+            O3DELinkInfo info = createO3DELinkInfo(link, robotState_->getFrameTransform(link));
+            o3deLinksInfo.push_back(info);
+        }
+
+        return o3deLinksInfo;
     }
 
     vector<O3DELinkInfo> sendO3DELinksInfo()
