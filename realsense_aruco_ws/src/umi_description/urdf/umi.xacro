@@ -99,7 +99,7 @@
     <joint name="tool_link_2_umi_link" type="fixed">
         <parent link="hand_link" />
         <child link="tool_link" />
-        <origin rpy="0 0 0" xyz="0 0.01105 0.2" />
+        <origin rpy="0 0 0" xyz="0 -0.01105 0.2" />
     </joint>
 
 </robot>
