@@ -85,6 +85,10 @@ public:
         // change this path to the desired one
         outputPath_ = ros::package::getPath("umi_control") + "/output_link_traj/";
 
+        // initialize poses buffer
+        linkPosesBuffer_.resize(3);
+        currentBufferIndex_ = 0;
+
         // initalize UDP Server
         // setupUDPServer();
         // clear output directory
@@ -145,17 +149,22 @@ public:
         server_thread.detach();
     }
 
-    void startHttpServer() {
+    void startHttpServer()
+    {
         httplib::Server svr;
 
-        // 处理GET请求，返回机器人link位姿信息
         svr.Get("/robot_pose", [&](const httplib::Request& /*req*/, httplib::Response& res) {
-            vector<O3DELinkInfo> linksInfo = getO3DELinksInfo();
+            vector<vector<O3DELinkInfo>> linksInfoBuffer = getO3DELinksInfoBuffer();
             std::stringstream ss;
-            for (const auto& link : linksInfo) {
-                ss << link.linkName << ":"
-                   << link.x << "," << link.y << "," << link.z << ","
-                   << link.qw << "," << link.qx << "," << link.qy << "," << link.qz << " ";
+            for (const auto& linksInfo : linksInfoBuffer)
+            {
+                for (const auto& link : linksInfo)
+                {
+                    ss << link.linkName << ":"
+                    << link.x << "," << link.y << "," << link.z << ","
+                    << link.qw << "," << link.qx << "," << link.qy << "," << link.qz << " ";
+                }
+                ss << "\n";
             }
             res.set_content(ss.str(), "text/plain");
         });
@@ -210,6 +219,10 @@ private:
     double currentLeftFingerJoint_;
     double currentRightFingerJoint_;
 
+    // 维护最新n个pose的缓冲区
+    vector<vector<O3DELinkInfo>> linkPosesBuffer_;
+    size_t currentBufferIndex_;
+
     void setupUDPServer()   
     {
         udpSocket_ = socket(AF_INET, SOCK_DGRAM, 0);
@@ -249,6 +262,7 @@ private:
         robotState_->setJointGroupPositions(jointModelGroup_, currentJointValues_);
         robotState_->setJointPositions("left_finger_joint", &currentLeftFingerJoint_);
         robotState_->setJointPositions("right_finger_joint", &currentRightFingerJoint_);
+        updateLinkPosesBuffer();
     }
 
     void jointStatesCallback(const sensor_msgs::JointStateConstPtr &jointStatePtr)
@@ -273,6 +287,7 @@ private:
 
     void spaceMouseCallback(const sensor_msgs::JoyConstPtr &joyPtr)
     {
+        updateRobotState();
         // ROS_INFO("SpaceMouse callback triggered");
         if (spaceMouseFlag_ == false)
         {
@@ -417,6 +432,11 @@ private:
         jointStatesMsgs_.effort.push_back(0);
     }
 
+    vector<vector<O3DELinkInfo>> getO3DELinksInfoBuffer()
+    {
+        return linkPosesBuffer_;
+    }
+
     vector<O3DELinkInfo> getO3DELinksInfo()
     {
         vector<O3DELinkInfo> o3deLinksInfo;
@@ -481,6 +501,20 @@ private:
         file.close();
         return o3deLinksInfo;
     }   
+
+    void updateLinkPosesBuffer()
+    {
+        vector<O3DELinkInfo> currentLinkPoses;
+        for (const auto& link : linkWithGeos_)
+        {
+            O3DELinkInfo info = createO3DELinkInfo(link, robotState_->getFrameTransform(link));
+            currentLinkPoses.push_back(info);
+        }
+        
+        // Update the buffer with the latest link poses
+        linkPosesBuffer_[currentBufferIndex_] = currentLinkPoses;
+        currentBufferIndex_ = (currentBufferIndex_ + 1) % linkPosesBuffer_.size();
+    }
 
     static bool compareFiles(const fs::path& a, const fs::path& b) {
         // 使用正则表达式提取文件名中的数字部分
