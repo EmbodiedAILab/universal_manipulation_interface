@@ -1,10 +1,8 @@
 <launch>
     <node name="video_traj_recorder" pkg="record_data" type="video_traj_recorder" output="screen">
+        <!-- <remap from="ego_camera_topic" to="camera/color/image_raw" /> -->
         <remap from="ego_camera_topic" to="ego_camera/color/image_raw" />
         <remap from="ext_camera_topic" to="ext_camera/color/image_raw" />
-        <!-- <remap from="ego_camera_topic" to="usb_cam/image_raw" />
-        <remap from="ext_camera_topic" to="camera2/color/image_raw" /> -->
         <remap from="aruco_pose_topic" to="aruco_single/pose" />
     </node>
 </launch>
-
