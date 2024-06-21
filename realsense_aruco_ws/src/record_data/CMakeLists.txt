@@ -29,7 +29,7 @@ set_target_properties(avformat PROPERTIES IMPORTED_LOCATION ${ffmpeg_libs_DIR}/l
 set_target_properties(avutil PROPERTIES IMPORTED_LOCATION ${ffmpeg_libs_DIR}/libavutil.so)
 catkin_package(
  #INCLUDE_DIRS include
- CATKIN_DEPENDS roscpp aruco_ros message_runtime
+ CATKIN_DEPENDS roscpp aruco_ros 
 )
 #include_directories ("/usr/include/opencv4/")
 include_directories(

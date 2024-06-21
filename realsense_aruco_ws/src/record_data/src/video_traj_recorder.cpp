@@ -312,19 +312,6 @@ public:
             }
         }
 
-        // 查看data_folder是否存在
-        boost::filesystem::path dataFolderPath = ros::package::getPath("record_data") + "/data_folder";
-        if (!boost::filesystem::exists(dataFolderPath)) {
-            ROS_WARN_STREAM(dataFolderPath << "doesn't exist, create it");
-            // 创建 data_folder 文件夹
-            if (boost::filesystem::create_directory(dataFolderPath)) {
-                ROS_WARN_STREAM(dataFolderPath << "has been created successfully.");
-            } else {
-                ROS_WARN_STREAM("Failed to create the" << dataFolderPath);
-                ros::shutdown();
-            }
-        }
-
         // 通过键盘控制开始或者结束
         ROS_INFO("Ready to record video and trajectory");
         while(ros::ok()) {
@@ -358,6 +345,7 @@ public:
                 // 结束记录，使用按键e(end)
                 if (c == 'e') {
                     startRecord_ = false;
+                    frameIdx_=0;
                     videoWriter_.release(); 
                     //videoWriter_.close();
                     ROS_WARN_STREAM("Video file has been saved to " << videoPath_);
@@ -394,7 +382,7 @@ private:
     double imageFrequency = 30;
 
     double firstTimestamp_;
-    int frameIdx_;
+    int frameIdx_=0;
     std::chrono::system_clock::time_point startTime_;
 
     image_transport::ImageTransport it_;
@@ -462,13 +450,14 @@ private:
     void arucoPoseCallback(const geometry_msgs::PoseStamped::ConstPtr& msg)
     {
         if (!arucoPoseFlag_) {
-            firstTimestamp_ = msg->header.stamp.toSec();
-            frameIdx_ = 0;
             arucoPoseFlag_ = true;
             ROS_WARN("Received aruco pose");
         }
         if (startRecord_ == false) {
             return;
+        }
+        if (frameIdx_ == 0){
+            firstTimestamp_ = msg->header.stamp.toSec();
         }
 
         // 记录ego camera相对于ext camera的位姿，而不是aruco相对于ext camera的位姿
