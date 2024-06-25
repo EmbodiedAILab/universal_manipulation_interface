@@ -59,7 +59,40 @@ from umi.real_world.real_inference_util import (get_real_obs_dict,
 # from umi.real_world.spacemouse_shared_memory import Spacemouse
 from umi.common.pose_util import pose_to_mat, mat_to_pose
 
+global RESET_VALUE
+RESET_VALUE= False
+print(RESET_VALUE)
 OmegaConf.register_new_resolver("eval", eval, replace=True)
+
+# originl code
+# def solve_table_collision(ee_pose, gripper_width, height_threshold):
+#     finger_thickness = 25.5 / 1000
+#     keypoints = list()
+#     for dx in [-1, 1]:
+#         for dy in [-1, 1]:
+#             keypoints.append((dx * gripper_width / 2, dy * finger_thickness / 2, 0))
+#     keypoints = np.asarray(keypoints)
+#     rot_mat = st.Rotation.from_rotvec(ee_pose[3:6]).as_matrix()
+#     transformed_keypoints = np.transpose(rot_mat @ np.transpose(keypoints)) + ee_pose[:3]
+#     delta = max(height_threshold - np.min(transformed_keypoints[:, 2]), 0)
+#     ee_pose[2] += delta
+
+# def solve_table_collision(ee_pose, gripper_width, height_threshold):
+#     finger_thickness = 25.5 / 1000
+#     keypoints = list()
+#     for dx in [-1, 1]:
+#         for dy in [-1, 1]:
+#             keypoints.append((dx * gripper_width / 2, dy * finger_thickness / 2, 0))
+#     keypoints = np.asarray(keypoints)
+#     rot_mat = st.Rotation.from_rotvec(ee_pose[3:6]).as_matrix()
+#     transformed_keypoints = np.transpose(rot_mat @ np.transpose(keypoints)) + ee_pose[:3]
+#     # delta = max(height_threshold - np.min(transformed_keypoints[:, 2]), 0)
+#     min_height = np.min(transformed_keypoints[:, 2])
+#     if min_height<height_threshold:
+#         delta = height_threshold-min_height
+#     if min_height > height_threshold :
+#         delta = -0.03
+#     ee_pose[2] += delta
 
 def solve_table_collision(ee_pose, gripper_width, height_threshold):
     finger_thickness = 25.5 / 1000
@@ -70,8 +103,36 @@ def solve_table_collision(ee_pose, gripper_width, height_threshold):
     keypoints = np.asarray(keypoints)
     rot_mat = st.Rotation.from_rotvec(ee_pose[3:6]).as_matrix()
     transformed_keypoints = np.transpose(rot_mat @ np.transpose(keypoints)) + ee_pose[:3]
-    delta = max(height_threshold - np.min(transformed_keypoints[:, 2]), 0)
+    min_height = np.min(transformed_keypoints[:, 2])
+    delta = 0
+    print('ee_pose:',ee_pose)
+    collision_detect_thres = 0.05   # 距离桌面多高，开始启用碰撞检测，z方向的距离，单位为米
+    delta_z_offset = 0.035           # 夹爪向下的距离，单位为米
+    if min_height < height_threshold:
+        delta = height_threshold - min_height
+        print('min_height < height_threshold')
+    if min_height > height_threshold and min_height < height_threshold + collision_detect_thres:
+        delta = -delta_z_offset
+        print('min_height > height_threshold')
+    # delta = max(height_threshold - np.min(transformed_keypoints[:, 2]), 0)
     ee_pose[2] += delta
+
+#     # 模式2
+#     tcp_offset_manual = 0.017        # 夹爪往前的距离，不是单纯的向下，单位为米
+#     collision_detect_thres = 0.15   # 距离桌面多高，开始启用碰撞检测，z方向的距离，单位为米
+#     keypoint = [0, 0, tcp_offset_manual]
+#     rot_mat = st.Rotation.from_rotvec(ee_pose[3:6]).as_matrix()
+#     # print('ee_pose size:', np.size(ee_pose))
+#     transformed_keypoint= np.transpose(rot_mat @ np.transpose(keypoint)) + ee_pose[:3]
+#     if transformed_keypoint[2] < height_threshold:
+#         scale = (height_threshold - ee_pose[2]) / (transformed_keypoint[2] - ee_pose[2])
+#         ee_pose[0] += (transformed_keypoint[0] - ee_pose[0]) * scale
+#         ee_pose[1] += (transformed_keypoint[1] - ee_pose[1]) * scale
+#         ee_pose[2] += (transformed_keypoint[2] - ee_pose[2]) * scale
+#     if transformed_keypoint[2] > height_threshold and transformed_keypoint[2] < height_threshold + collision_detect_thres:
+#         ee_pose[0] = transformed_keypoint[0]
+#         ee_pose[1] = transformed_keypoint[1]
+#         ee_pose[2] += (transformed_keypoint[2] - ee_pose[2])
 
 def solve_sphere_collision(ee_poses, robots_config):
     num_robot = len(robots_config)
@@ -114,7 +175,7 @@ def solve_sphere_collision(ee_poses, robots_config):
 @click.option('--match_camera', '-mc', default=0, type=int)
 @click.option('--camera_reorder', '-cr', default='0')
 @click.option('--vis_camera_idx', default=0, type=int, help="Which RealSense camera to visualize.")
-@click.option('--init_joints', '-j', is_flag=True, default=False, help="Whether to initialize robot joint configuration in the beginning.")
+@click.option('--init_joints', '-j', is_flag=True, default=True, help="Whether to initialize robot joint configuration in the beginning.")
 @click.option('--steps_per_inference', '-si', default=6, type=int, help="Action horizon for inference.")
 @click.option('--max_duration', '-md', default=2000000, help='Max duration for each epoch in seconds.')
 @click.option('--frequency', '-f', default=10, type=float, help="Control frequency in Hz.")
@@ -192,8 +253,8 @@ def main(input, output, robot_config,
                 fisheye_converter=fisheye_converter,
                 mirror_swap=mirror_swap,
                 # action
-                max_pos_speed=2.0,
-                max_rot_speed=6.0,
+                max_pos_speed=2.0, #0.1
+                max_rot_speed=6.0, #0.3
                 shm_manager=shm_manager) as env:
             cv2.setNumThreads(2)
             print("Waiting for camera")
@@ -251,6 +312,7 @@ def main(input, output, robot_config,
                     obs[f'robot{robot_id}_eef_rot_axis_angle']
                 ], axis=-1)[-1]
                 episode_start_pose.append(pose)
+                # print('episode start pose appended', pose)
             with torch.no_grad():
                 policy.reset()
                 obs_dict_np = get_real_umi_obs_dict(
@@ -377,6 +439,10 @@ def main(input, output, robot_config,
                             control_robot_idx_list = [0]
                         elif key_stroke == KeyCode(char='2'):
                             control_robot_idx_list = [1]
+                        elif key_stroke == KeyCode(char='r'):
+                            print('enter r')
+                            for robot_idx in range(1):
+                                env.robots[0].servoJ()
 
                     if start_policy:
                         break
@@ -449,6 +515,7 @@ def main(input, output, robot_config,
                             obs[f'robot{robot_id}_eef_rot_axis_angle']
                         ], axis=-1)[-1]
                         episode_start_pose.append(pose)
+                        print('episode start pose appended in policy control', pose)
 
                     # wait for 1/30 sec to get the closest frame actually
                     # reduces overall latency
@@ -464,6 +531,7 @@ def main(input, output, robot_config,
                         # get obs
                         obs = env.get_obs()
                         obs_timestamps = obs['timestamp']
+                        # print('Obs: ', obs)
                         print(f'Obs latency {time.time() - obs_timestamps[-1]}')
 
                         # run inference
@@ -477,8 +545,10 @@ def main(input, output, robot_config,
                             obs_dict = dict_apply(obs_dict_np, 
                                 lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
                             result = policy.predict_action(obs_dict)
+                            # print('predict action:', result)
                             raw_action = result['action_pred'][0].detach().to('cpu').numpy()
                             action = get_real_umi_action(raw_action, obs, action_pose_repr)
+                            #print('real umi action', action)
                             print('Inference latency:', time.time() - s)
                         
                         # convert policy action to env actions
@@ -486,9 +556,16 @@ def main(input, output, robot_config,
                         assert this_target_poses.shape[1] == len(robots_config) * 7
                         for target_pose in this_target_poses:
                             for robot_idx in range(len(robots_config)):
+                                # print('==target_pose gripper:', target_pose[robot_idx * 7 + 6])
+                                # if target_pose[robot_idx * 7 + 6] <= 0.02:
+                                #     gripper_target = 0
+                                # else: 
+                                #     gripper_target = target_pose[robot_idx * 7 + 6]
+                                # print('==target_pose gripper modified:', gripper_target)
+                                gripper_target = target_pose[robot_idx * 7 + 6]
                                 solve_table_collision(
                                     ee_pose=target_pose[robot_idx * 7: robot_idx * 7 + 6],
-                                    gripper_width=target_pose[robot_idx * 7 + 6],
+                                    gripper_width=gripper_target,
                                     height_threshold=robots_config[robot_idx]['height_threshold']
                                 )
                             
@@ -525,6 +602,7 @@ def main(input, output, robot_config,
                             compensate_latency=True
                         )
                         print(f"Submitted {len(this_target_poses)} steps of actions.")
+                        # print('Submitted poses', this_target_poses)
 
                         # visualize
                         episode_id = env.replay_buffer.n_episodes
