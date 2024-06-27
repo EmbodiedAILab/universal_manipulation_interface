@@ -27,7 +27,8 @@
 #include <arpa/inet.h>
 #include <boost/filesystem.hpp>
 #include <regex>
-#include "httplib.h"
+#include <unordered_map>
+#include <thread>
 
 namespace fs = boost::filesystem;
 using namespace std;
@@ -90,7 +91,7 @@ public:
         currentBufferIndex_ = 0;
 
         // initalize UDP Server
-        // setupUDPServer();
+        setupUDPServer();
         // clear output directory
         // clearOutputDirectory();
 
@@ -144,32 +145,29 @@ public:
             }
         }
 
-        // Start HTTP server thread
-        std::thread server_thread(&UmiController::startHttpServer, this);
-        server_thread.detach();
+        std::thread commandThread(&UmiController::CommandProcessor, this);
+        commandThread.detach();
     }
 
-    void startHttpServer()
+    void CommandProcessor()
     {
-        httplib::Server svr;
+        std::unordered_map<char, std::string> keyToMessage = {
+            {'c', "START"},
+            {'s', "STOP"},
+            {'r', "RESET"}
+        };
 
-        svr.Get("/robot_pose", [&](const httplib::Request& /*req*/, httplib::Response& res) {
-            vector<vector<O3DELinkInfo>> linksInfoBuffer = getO3DELinksInfoBuffer();
-            std::stringstream ss;
-            for (const auto& linksInfo : linksInfoBuffer)
+        while (true)
+        {
+            char key = getchar();
+            auto it = keyToMessage.find(key);
+            if (it != keyToMessage.end())
             {
-                for (const auto& link : linksInfo)
-                {
-                    ss << link.linkName << ":"
-                    << link.x << "," << link.y << "," << link.z << ","
-                    << link.qw << "," << link.qx << "," << link.qy << "," << link.qz << " ";
-                }
-                ss << "\n";
+                sendDataToClients(it->second);
+                ROS_INFO("%s sent", it->second.c_str());
+                std::this_thread::sleep_for(std::chrono::seconds(1)); // 1秒内只发送一次
             }
-            res.set_content(ss.str(), "text/plain");
-        });
-
-        svr.listen("0.0.0.0", 65432);
+        }
     }
 
 private:
@@ -242,9 +240,9 @@ private:
         memset(&serverAddr_, 0, sizeof(serverAddr_));
         serverAddr_.sin_family = AF_INET;
         serverAddr_.sin_addr.s_addr = inet_addr("10.78.114.255"); // Subnet broadcast address
-        serverAddr_.sin_port = htons(8080);
+        serverAddr_.sin_port = htons(65433);
 
-        ROS_INFO("UDP server set up and broadcasting on port 8080");
+        ROS_INFO("UDP server set up and broadcasting on port 65433");
     }
 
     void sendDataToClients(const std::string &data)
@@ -317,6 +315,7 @@ private:
 
         // saveO3DELinksInfo();
         jointPosPub_.publish(jointStatesMsgs_);
+        sendO3DELinksInfo();
 
         lastSpaceMouseTime_ = joyPtr->header.stamp;
     }
@@ -467,9 +466,9 @@ private:
         }
         // ROS_INFO("Complete dataToSend: %s", dataToSend.c_str());
 
-        ROS_INFO("%s", dataToSend.c_str());
+        // ROS_INFO("%s", dataToSend.c_str());
         sendDataToClients(dataToSend);
-        ROS_INFO("send finish");
+        // ROS_INFO("send finish");
 
         return o3deLinksInfo;
     }
