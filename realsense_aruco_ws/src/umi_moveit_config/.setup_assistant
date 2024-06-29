@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: umi_description
+    relative_path: urdf/umi.xacro
+    xacro_args: ""
+  SRDF:
+    relative_path: config/umi.srdf
+  CONFIG:
+    author_name: zhangheng
+    author_email: zhangheng203@huawei.com
+    generated_timestamp: 1718105306

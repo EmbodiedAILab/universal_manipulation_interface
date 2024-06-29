@@ -1,0 +1,6 @@
+<launch>
+
+    <include file="$(find record_data)/launch/start_two_realsense.launch"/>
+    <include file="$(find record_data)/launch/start_aruco.launch"/>
+
+</launch>
