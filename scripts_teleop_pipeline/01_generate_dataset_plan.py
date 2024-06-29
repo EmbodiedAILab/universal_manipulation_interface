@@ -28,13 +28,6 @@ import av
 from exiftool import ExifToolHelper
 from umi.common.timecode_util import mp4_get_start_datetime
 from umi.common.pose_util import pose_to_mat, mat_to_pose
-from umi.common.cv_util import (
-    get_gripper_width
-)
-from umi.common.interpolation_util import (
-    get_gripper_calibration_interpolator,
-    get_interp1d
-)
 
 
 # %%
@@ -65,12 +58,6 @@ def get_bool_segments(bool_seq):
 @click.option('--ignore_cameras', type=str, default=None, help="comma separated string of camera serials to ignore")
 def main(input, output, tcp_offset, tx_slam_tag,
          nominal_z, min_episode_length, ignore_cameras):
-    # param that should be agjusted
-    # all unit in meters
-    # y axis in camera frame
-    cam_to_center_height = 0.086  # constant for UMI, change it to your setting
-    # optical center to mounting screw, positive is when optical center is in front of the mount
-    cam_to_mount_offset = 0.01465  # constant for GoPro Hero 9,10,11, change it to your setting
 
     # %% stage 0
     # gather inputs
@@ -78,53 +65,6 @@ def main(input, output, tcp_offset, tx_slam_tag,
     demos_dir = input_path.joinpath('demos')
     if output is None:
         output = input_path.joinpath('dataset_plan.pkl')
-
-    # tcp to camera transform
-    # cam_to_tip_offset = cam_to_mount_offset + tcp_offset
-    # pose_cam_tcp = np.array([0, cam_to_center_height, cam_to_tip_offset, 0,0,0])
-    # pose_cam_tcp = np.array([0,0.057,0.427,0.5,0,0])
-    # tx_cam_tcp = pose_to_mat(pose_cam_tcp)
-
-    # 对于aruco的场景，可以在环境中贴一个公共的二维码，当作世界坐标系，并且相机的轨迹是相对于该标记物的
-    # 但是猜测跟这个坐标系关系不大，因为在训练的时候，使用的都是相对坐标系，可以搞个单位矩阵或者把代码删掉
-    # 原始的slam方案中，会记录slam地图的原点相对于桌面二维码的变换
-    # 在aruco的方案中，可以将该数值设置为外置相机相对于桌面某一个二维码的位置，下面的代码逻辑得以保留
-    # if tx_slam_tag is None:
-    #     path = demos_dir.joinpath('mapping', 'tx_slam_tag.json')
-    #     assert path.is_file()
-    #     tx_slam_tag = str(path)
-    # tx_slam_tag = np.array(json.load(
-    #     open(os.path.expanduser(tx_slam_tag), 'r')
-    #     )['tx_slam_tag']
-    # )
-    # tx_tag_slam = np.linalg.inv(tx_slam_tag)
-
-    # load gripper calibration
-    gripper_id_gripper_cal_map = dict()
-    cam_serial_gripper_cal_map = dict()
-
-    # record cam_serial
-    # cam_serial = None
-    # with ExifToolHelper() as et:
-    #     for gripper_cal_path in demos_dir.glob("gripper*/gripper_range.json"):
-    #         mp4_path = gripper_cal_path.parent.joinpath('raw_video.mp4')
-    #         if cam_serial is None:
-    #             #meta = list(et.get_metadata(str(mp4_path)))[0]
-    #             #cam_serial = meta['QuickTime:CameraSerialNumber']
-    #             cam_serial = '00001'
-    #         # TODO: realsense的相机中可能没有这个meta关键字，需要根据具体的视频进行修改
-    #
-    #         gripper_range_data = json.load(gripper_cal_path.open('r'))
-    #         gripper_id = gripper_range_data['gripper_id']
-    #         max_width = gripper_range_data['max_width']
-    #         min_width = gripper_range_data['min_width']
-    #         gripper_cal_data = {
-    #             'aruco_measured_width': [min_width, max_width],
-    #             'aruco_actual_width': [min_width, max_width]
-    #         }
-    #         gripper_cal_interp = get_gripper_calibration_interpolator(**gripper_cal_data)
-    #         gripper_id_gripper_cal_map[gripper_id] = gripper_cal_interp
-    #         cam_serial_gripper_cal_map[cam_serial] = gripper_cal_interp
 
     # %% stage 1
     # loop over all demo directory to extract video metadata
@@ -147,8 +87,6 @@ def main(input, output, tcp_offset, tx_slam_tag,
             # TODO：这个在存储视频的时候需要保存，函数的实现需要修改
             start_date = mp4_get_start_datetime(str(mp4_path))
             start_timestamp = start_date.timestamp()
-            # start_timestamp = datetime.now().timestamp()
-            # start_timestamp = 1704855454.882133     # read from the video
 
             if cam_serial in ignore_cam_serials:
                 print(f"Ignored {video_dir.name}")
@@ -381,16 +319,7 @@ def main(input, output, tcp_offset, tx_slam_tag,
             df_reindexed["q_w"] = df_reindexed["q_w"].fillna(0.0)
 
             # select aligned frames
-            df = df_reindexed.iloc[start_frame_idx -1 : start_frame_idx + n_frames -1]
-            # idx = start_frame_idx
-            # for i, dfrow in df.iterrows():
-            #     # while idx < dfrow['frame_idx']:
-            #     #     print(f"lost frame: {idx}")
-            #     #     idx += 1
-            #     # idx +=1
-            #     if dfrow['is_lost']:
-            #         print(dfrow)
-            # print(df.shape)
+            df = df_reindexed.iloc[start_frame_idx: start_frame_idx + n_frames]
 
             is_tracked = (~df['is_lost']).to_numpy()
 
@@ -422,11 +351,6 @@ def main(input, output, tcp_offset, tx_slam_tag,
             # TODO: handle optinal robot cal based filtering
             is_step_valid = is_tracked.copy()
             # get gripper data
-            # pkl_path = video_dir.joinpath('tag_detection.pkl')
-            # if not pkl_path.is_file():
-            #     print(f"Skipping {video_dir.name}, no tag_detection.pkl.")
-            #     dropped_camera_count[row['camera_serial']] += 1
-            #     continue
             gripper_path = video_dir.joinpath('gripper_width.csv')
             if not gripper_path.is_file():
                 print(f"Skipping {video_dir.name}, no gripper_width.csv.")
@@ -437,77 +361,16 @@ def main(input, output, tcp_offset, tx_slam_tag,
             # print(gripper_df.loc[gripper_df.index.duplicated(), :])
             gripper_df = gripper_df.loc[~gripper_df.index.duplicated(), :]
             full_index = pd.RangeIndex(start=0, stop=gripper_df.index.max() + 1, step=1)
+            df_reindexed = gripper_df.reindex(full_index)
             df_reindexed.iloc[0] = df_reindexed.iloc[1]
             df_reindexed.iloc[0]['timestamp'] = 0
-            df_reindexed = gripper_df.reindex(full_index)
             gripper_df = df_reindexed[start_frame_idx : start_frame_idx+n_frames]
 
             idx = start_frame_idx
-            # for i, dfrow in gripper_df.iterrows():
-            #     while idx < dfrow['frame_idx']:
-            #         print(f"lost frame: {idx}")
-            #         idx += 1
-            #     idx +=1
-            # print(gripper_df)
-
-            # tag_detection_results = pickle.load(open(pkl_path, 'rb'))
-            # # select aligned frames
-            # tag_detection_results = tag_detection_results[start_frame_idx: start_frame_idx+n_frames]
-
-            # one item per frame
-            # video_timestamps = np.array([x['timestamp'] for x in tag_detection_results])
-            # # print(f"df len: {len(df)}, vt len: {len(video_timestamps)}")
-            # if len(df) != len(video_timestamps):
-            #     print(f"Skipping {video_dir.name}, video csv length mismatch.")
-            #     continue
-
-            # get gripper action
-            # TODO 1
-            # ghi = row['gripper_hardware_id']
-            # ghi = 0
-            # if ghi < 0:
-            #     print(f"Skipping {video_dir.name}, invalid gripper hardware id {ghi}")
-            #     dropped_camera_count[row['camera_serial']] += 1
-            #     continue
-            #
-            # left_id = 6 * ghi
-            # right_id = left_id + 1
-            #
-            # gripper_cal_interp = None
-            # if ghi in gripper_id_gripper_cal_map:
-            #     gripper_cal_interp = gripper_id_gripper_cal_map[ghi]
-            # elif row['camera_serial'] in cam_serial_gripper_cal_map:
-            #     gripper_cal_interp = cam_serial_gripper_cal_map[row['camera_serial']]
-            #     print(f"Gripper id {ghi} not found in gripper calibrations {list(gripper_id_gripper_cal_map.keys())}. Falling back to camera serial map.")
-            # else:
-            #     raise RuntimeError("Gripper calibration not found.")
-            #
-            # gripper_timestamps = list()
-            # gripper_widths = list()
-            # for td in tag_detection_results:
-            #     # print(f"td: {td}， left_id: {left_id}, right_id: {right_id}")
-            #     width = get_gripper_width(td['tag_dict'],
-            #         left_id=left_id, right_id=right_id,
-            #         nominal_z=nominal_z)
-            #     if width is not None:
-            #         gripper_timestamps.append(td['time'])
-            #         gripper_widths.append(gripper_cal_interp(width))
-            # gripper_interp = get_interp1d(gripper_timestamps, gripper_widths)
-            #
-            # gripper_det_ratio = (len(gripper_widths) / len(tag_detection_results))
-            # if gripper_det_ratio < 0.9:
-            #     print(f"Warning: {video_dir.name} only {gripper_det_ratio} of gripper tags detected.")
-            #
-            # this_gripper_widths = gripper_interp(video_timestamps)
-
             this_gripper_widths = gripper_df['width'].values
-            this_gripper_widths = this_gripper_widths[:n_frames]
+            print([  x for x in this_gripper_widths])
             print(f"nframe: {n_frames}")
             print(f"width: {this_gripper_widths}, len:{len(this_gripper_widths)},max: {gripper_df.shape}")
-
-            # transform to tcp frame
-            # tx_tag_tcp = tx_tag_cam @ tx_cam_tcp
-            # pose_tag_tcp = mat_to_pose(tx_tag_tcp)
             pose_tag_tcp = mat_to_pose(cam_pose)
             print(f"pose_tag_tcp {pose_tag_tcp}, len: {len(pose_tag_tcp)}, max: {cam_pose.shape},")
 
@@ -528,11 +391,11 @@ def main(input, output, tcp_offset, tx_slam_tag,
         all_is_valid = np.array(all_is_valid)
         is_step_valid = np.all(all_is_valid, axis=0)
 
-        print(f"is_step_valid: {is_step_valid}\nall_is_valid: {all_is_valid}")
-
         # generate episode start and end pose for each gripper
         first_valid_step = np.nonzero(is_step_valid)[0][0]
         last_valid_step = np.nonzero(is_step_valid)[0][-1]
+        print(f"first_valid_step: {first_valid_step}\nlast_valid_step: {last_valid_step}")
+
         demo_start_poses = list()
         demo_end_poses = list()
         for cam_idx in range(len(all_cam_poses)):
@@ -587,6 +450,7 @@ def main(input, output, tcp_offset, tx_slam_tag,
                 "grippers": grippers,
                 "cameras": cameras
             })
+            print([g['gripper_width'] for g in grippers])
 
     used_ratio = total_used_time / total_avaliable_time
     print(f"{int(used_ratio * 100)}% of raw data are used.")

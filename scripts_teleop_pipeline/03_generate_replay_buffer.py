@@ -24,6 +24,7 @@ from umi.common.cv_util import (
     FisheyeRectConverter,
     get_image_transform, 
     draw_predefined_mask,
+    draw_gripper_mask,
     inpaint_tag,
     get_mirror_crop_slices
 )
@@ -121,6 +122,7 @@ def main(input, output, out_res, out_fov, compression_level,
                 episode_data[robot_name + '_demo_start_pose'] = demo_start_pose
                 episode_data[robot_name + '_demo_end_pose'] = demo_end_pose
             
+            print(episode_data['robot0_gripper_width'])
             out_replay_buffer.add_episode(data=episode_data, compressors=None)
             
             # aggregate video gen aguments
@@ -145,6 +147,7 @@ def main(input, output, out_res, out_fov, compression_level,
             buffer_start += n_frames
         
         vid_args.extend(videos_dict.items())
+        print(f"vid_args: {vid_args}")
         all_videos.update(videos_dict.keys())
     
     print(f"{len(all_videos)} videos used in total!")
@@ -233,7 +236,7 @@ def main(input, output, out_res, out_fov, compression_level,
                         img[is_mirror] = img[:,::-1,:][is_mirror]
 
 
-                    img = draw_predefined_mask(img, color=(0, 0, 0),
+                    img = draw_gripper_mask(img, color=(0, 0, 0),
                         mirror=no_mirror, gripper=True, finger=False)
 
                     # compress image
@@ -245,6 +248,7 @@ def main(input, output, out_res, out_fov, compression_level,
                         curr_task_idx += 1
                 else:
                     assert False
+            print(f"buffer id: {buffer_idx}")
 
                     
     with tqdm(total=len(vid_args)) as pbar:
