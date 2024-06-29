@@ -40,7 +40,7 @@ def main(input_dir, camera_intrinsics, aruco_yaml, num_workers):
     if num_workers is None:
         num_workers = multiprocessing.cpu_count()
 
-    script_path = pathlib.Path(__file__).parent.parent.joinpath('scripts', 'detect_aruco.py')
+    script_path = pathlib.Path(__file__).parent.parent.joinpath('scripts', 'detect_aruco_d435.py')
 
     with tqdm(total=len(input_video_dirs)) as pbar:
         # one chunk per thread, therefore no synchronization needed

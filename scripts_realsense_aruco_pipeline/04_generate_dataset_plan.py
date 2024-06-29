@@ -5,6 +5,7 @@ python scripts_slam_pipeline/06_generate_dataset_plan.py -i data_workspace/cup_i
 # %%
 import sys
 import os
+from datetime import datetime
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(ROOT_DIR)
@@ -57,7 +58,7 @@ def get_bool_segments(bool_seq):
 @click.option('-o', '--output', default=None)
 @click.option('-to', '--tcp_offset', type=float, default=0.205, help="Distance from gripper tip to mounting screw")
 @click.option('-ts', '--tx_slam_tag', default=None, help="tx_slam_tag.json")
-@click.option('-nz', '--nominal_z', type=float, default=0.072, help="nominal Z value for gripper finger tag")
+@click.option('-nz', '--nominal_z', type=float, default=0.31, help="nominal Z value for gripper finger tag")
 @click.option('-ml', '--min_episode_length', type=int, default=24)
 @click.option('--ignore_cameras', type=str, default=None, help="comma separated string of camera serials to ignore")
 def main(input, output, tcp_offset, tx_slam_tag,
@@ -79,7 +80,8 @@ def main(input, output, tcp_offset, tx_slam_tag,
 
     # tcp to camera transform
     cam_to_tip_offset = cam_to_mount_offset + tcp_offset
-    pose_cam_tcp = np.array([0, cam_to_center_height, cam_to_tip_offset, 0,0,0])
+    #pose_cam_tcp = np.array([0, cam_to_center_height, cam_to_tip_offset, 0,0,0])
+    pose_cam_tcp = np.array([0,0.057,0.427,0.5,0,0])
     tx_cam_tcp = pose_to_mat(pose_cam_tcp)
     
     # 对于aruco的场景，可以在环境中贴一个公共的二维码，当作世界坐标系，并且相机的轨迹是相对于该标记物的
@@ -106,8 +108,9 @@ def main(input, output, tcp_offset, tx_slam_tag,
         for gripper_cal_path in demos_dir.glob("gripper*/gripper_range.json"):
             mp4_path = gripper_cal_path.parent.joinpath('raw_video.mp4')
             if cam_serial is None:
-                meta = list(et.get_metadata(str(mp4_path)))[0]
-                cam_serial = meta['QuickTime:CameraSerialNumber']
+                #meta = list(et.get_metadata(str(mp4_path)))[0]
+                #cam_serial = meta['QuickTime:CameraSerialNumber']
+                cam_serial = '00001'
             # TODO: realsense的相机中可能没有这个meta关键字，需要根据具体的视频进行修改
 
             gripper_range_data = json.load(gripper_cal_path.open('r'))
@@ -125,7 +128,7 @@ def main(input, output, tcp_offset, tx_slam_tag,
     # %% stage 1
     # loop over all demo directory to extract video metadata
     # output: video_meta_df
-    
+    cam_serial='00001'
     # find videos
     video_dirs = sorted([x.parent for x in demos_dir.glob('demo_*/raw_video.mp4')])
 
@@ -396,7 +399,6 @@ def main(input, output, tcp_offset, tx_slam_tag,
 
             # one item per frame
             video_timestamps = np.array([x['time'] for x in tag_detection_results])
-
             if len(df) != len(video_timestamps):
                 print(f"Skipping {video_dir.name}, video csv length mismatch.")
                 continue
@@ -435,10 +437,9 @@ def main(input, output, tcp_offset, tx_slam_tag,
             
             gripper_det_ratio = (len(gripper_widths) / len(tag_detection_results))
             if gripper_det_ratio < 0.9:
-                print(f"Warining: {video_dir.name} only {gripper_det_ratio} of gripper tags detected.")
+                print(f"Warning: {video_dir.name} only {gripper_det_ratio} of gripper tags detected.")
             
             this_gripper_widths = gripper_interp(video_timestamps)
-            
             # transform to tcp frame
             tx_tag_tcp = tx_tag_cam @ tx_cam_tcp
             pose_tag_tcp = mat_to_pose(tx_tag_tcp)

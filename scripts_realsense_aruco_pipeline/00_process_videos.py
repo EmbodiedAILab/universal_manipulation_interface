@@ -4,6 +4,7 @@ python scripts_slam_pipeline/00_process_videos.py <session_dir>
 # %%
 import sys
 import os
+from datetime import datetime
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 sys.path.append(ROOT_DIR)
@@ -46,9 +47,10 @@ def main(session_dir):
                 for mp4_path in list(input_dir.glob('**/*.MP4')) + list(input_dir.glob('**/*.mp4')):
                     
                     start_date = mp4_get_start_datetime(str(mp4_path))
-                    meta = list(et.get_metadata(str(mp4_path)))[0]
-                    cam_serial = meta['QuickTime:CameraSerialNumber']
-                    
+                    #meta = list(et.get_metadata(str(mp4_path)))[0]
+                    #cam_serial = meta['QuickTime:CameraSerialNumber']
+                    cam_serial='00001'
+
                     if cam_serial in serial_start_dict:
                         if start_date < serial_start_dict[cam_serial]:
                             serial_start_dict[cam_serial] = start_date
@@ -74,7 +76,8 @@ def main(session_dir):
 
                 start_date = mp4_get_start_datetime(str(mp4_path))
                 meta = list(et.get_metadata(str(mp4_path)))[0]
-                cam_serial = meta['QuickTime:CameraSerialNumber']
+                #cam_serial = meta['QuickTime:CameraSerialNumber']
+                cam_serial = '00001'
                 out_dname = 'demo_' + cam_serial + '_' + start_date.strftime(r"%Y.%m.%d_%H.%M.%S.%f")
 
                 # special folders
@@ -89,6 +92,9 @@ def main(session_dir):
                 vfname = 'raw_video.mp4'
                 out_video_path = this_out_dir.joinpath(vfname)
                 shutil.move(mp4_path, out_video_path)
+                csv_path = mp4_path.parent.joinpath(mp4_path.stem.lstrip('ego_')+'.csv')
+                out_trajectory_path= this_out_dir.joinpath('camera_trajectory.csv')
+                shutil.move(csv_path, out_trajectory_path)
 
                 # create symlink back from original location
                 # relative_to's walk_up argument is not avaliable until python 3.12
