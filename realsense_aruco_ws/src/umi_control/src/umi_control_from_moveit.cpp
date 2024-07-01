@@ -82,6 +82,7 @@ public:
         jointNames_ = armMoveGroup_.getVariableNames();
         linkWithGeos_ = robotModel_->getLinkModelNamesWithCollisionGeometry();
         robotState_ = armMoveGroup_.getCurrentState();
+        isReady_ = false;
 
         robotStateSub_ = nh_.subscribe("joint_states", 1, &UmiMoveitController::jointStatesCallback, this);
         ros::Duration(0.5).sleep();
@@ -106,52 +107,16 @@ public:
 
         objectMatrix_ = robotState_->getFrameTransform(eefFrame_);
         objectMatrix_.translation().z() -= 0.2;
-        // retreatMatrix = objectMatrix;
-        // retreatMatrix(2,3) += 0.1;
         placeMatrix_ = objectMatrix_;
         placeMatrix_.translation().y() += 0.1;
         
         while (ros::ok())
-        {
-            // Retrieve the latest object and place matrices
-            {
-                std::lock_guard<std::mutex> lock(matrixMutex_);
-                retreatMatrix_ = objectMatrix_;
-                retreatMatrix_.translation().z() += 0.2;
+        {   
+            // ROS_INFO ("waiting for msg");
+            if (isReady_) {
+                pickAndPlaceAction();
+                isReady_ = false;
             }
-
-            geometry_msgs::Pose objectPose, retreatPose, placePose;
-            tf2::convert(objectMatrix_, objectPose);
-            tf2::convert(retreatMatrix_, retreatPose);
-            tf2::convert(placeMatrix_, placePose);
-
-            armMoveGroup_.setPoseTarget(retreatPose);
-            armMoveGroup_.move();
-            ROS_INFO("Approach");
-
-            armMoveGroup_.setPoseTarget(objectPose);
-            armMoveGroup_.move();
-            ROS_INFO("Pregrasp");
-
-            gripperMoveGroup_.setJointValueTarget(getGripperJointsFromWidth(0.02));
-            gripperMoveGroup_.move();
-            ROS_INFO("Grasp");
-
-            armMoveGroup_.setPoseTarget(retreatPose);
-            armMoveGroup_.move();
-            ROS_INFO("Retreat");
-
-            armMoveGroup_.setPoseTarget(placePose);
-            armMoveGroup_.move();
-            ROS_INFO("PrePlace");
-
-            gripperMoveGroup_.setNamedTarget("open");
-            gripperMoveGroup_.move();
-            ROS_INFO("Place");
-
-            armMoveGroup_.setNamedTarget("home");
-            armMoveGroup_.move();
-            ROS_INFO("Home");
         }
     }
 
@@ -209,11 +174,12 @@ private:
     const double maxWidth_ = 0.08;
     const double minWidth_ = 0.0;
 
-    // Matrices
+    // Matrices for automatic PicknPlace
     Eigen::Affine3d objectMatrix_;
     Eigen::Affine3d retreatMatrix_;
     Eigen::Affine3d placeMatrix_;
     std::mutex matrixMutex_;
+    bool isReady_;
 
     void setupUDPServer()   
     {
@@ -379,6 +345,7 @@ private:
                     updateMatrixFromJSON(pt, "cup", objectMatrix_);
                     updateMatrixFromJSON(pt, "dish", placeMatrix_);
                 }
+                isReady_ = true;
             }
         }
     }
@@ -394,6 +361,48 @@ private:
         double qw = pt.get<double>(key + ".q_w");
 
         matrix = Eigen::Translation3d(x, y, z) * Eigen::Quaterniond(qw, qx, qy, qz);
+    }
+
+    void pickAndPlaceAction(){
+        {
+            std::lock_guard<std::mutex> lock(matrixMutex_);
+            retreatMatrix_ = objectMatrix_;
+            retreatMatrix_.translation().z() += 0.2;
+            placeMatrix_.translation().z() += 0.1;
+        }
+
+        geometry_msgs::Pose objectPose, retreatPose, placePose;
+        tf2::convert(objectMatrix_, objectPose);
+        tf2::convert(retreatMatrix_, retreatPose);
+        tf2::convert(placeMatrix_, placePose);
+
+        armMoveGroup_.setPoseTarget(retreatPose);
+        armMoveGroup_.move();
+        ROS_INFO("Approach");
+
+        armMoveGroup_.setPoseTarget(objectPose);
+        armMoveGroup_.move();
+        ROS_INFO("Pregrasp");
+
+        gripperMoveGroup_.setJointValueTarget(getGripperJointsFromWidth(0.02));
+        gripperMoveGroup_.move();
+        ROS_INFO("Grasp");
+
+        armMoveGroup_.setPoseTarget(retreatPose);
+        armMoveGroup_.move();
+        ROS_INFO("Retreat");
+
+        armMoveGroup_.setPoseTarget(placePose);
+        armMoveGroup_.move();
+        ROS_INFO("PrePlace");
+
+        gripperMoveGroup_.setNamedTarget("open");
+        gripperMoveGroup_.move();
+        ROS_INFO("Place");
+
+        armMoveGroup_.setNamedTarget("home");
+        armMoveGroup_.move();
+        ROS_INFO("Home");
     }
 };
 
