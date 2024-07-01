@@ -30,6 +30,12 @@
 #include <unordered_map>
 #include <thread>
 
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
+#include <mutex>
+#include <sys/socket.h>
+#include <unistd.h>
+
 namespace fs = boost::filesystem;
 using namespace std;
 
@@ -62,12 +68,12 @@ class UmiMoveitController
 {
 public:
     UmiMoveitController() : robotModelLoader_("robot_description"),
-                      robotModel_(robotModelLoader_.getModel()),
-                      robotState_(new robot_state::RobotState(robotModel_)),
-                      armJointModelGroup_(robotState_->getJointModelGroup("arm")),
-                      gripperJointModelGroup_(robotState_->getJointModelGroup("gripper")),
-                      armMoveGroup_("arm"),
-                      gripperMoveGroup_("gripper")
+                            robotModel_(robotModelLoader_.getModel()),
+                            robotState_(new robot_state::RobotState(robotModel_)),
+                            armJointModelGroup_(robotState_->getJointModelGroup("arm")),
+                            gripperJointModelGroup_(robotState_->getJointModelGroup("gripper")),
+                            armMoveGroup_("arm"),
+                            gripperMoveGroup_("gripper")
     {
         currentJointValues_.resize(armJointNumber_);
         setupUDPServer();
@@ -88,30 +94,36 @@ public:
         std::thread commandThread(&UmiMoveitController::CommandProcessor, this);
         commandThread.detach();
 
+        // Start the thread to receive data from clients
+        std::thread receiveThread(&UmiMoveitController::receiveDataFromClients, this);
+        receiveThread.detach();
+
         // make sure robot is at home and the gripper is opened
         armMoveGroup_.setNamedTarget("home");
         armMoveGroup_.move();
         gripperMoveGroup_.setNamedTarget("open");
         gripperMoveGroup_.move();
 
-        // objectPose和placePose需要从O3DE获取，此处随机示意
-        Eigen::Affine3d objectMatrix;
-        Eigen::Affine3d retreatMatrix;
-        Eigen::Affine3d placeMatrix;
+        objectMatrix_ = robotState_->getFrameTransform(eefFrame_);
+        objectMatrix_.translation().z() -= 0.2;
+        // retreatMatrix = objectMatrix;
+        // retreatMatrix(2,3) += 0.1;
+        placeMatrix_ = objectMatrix_;
+        placeMatrix_.translation().y() += 0.1;
         
         while (ros::ok())
         {
-            objectMatrix = robotState_->getFrameTransform(eefFrame_);
-            objectMatrix(2,3) -= 0.2;
-            retreatMatrix = objectMatrix;
-            retreatMatrix(2,3) += 0.1;
-            placeMatrix = objectMatrix;
-            placeMatrix(1,3) += 0.1;
+            // Retrieve the latest object and place matrices
+            {
+                std::lock_guard<std::mutex> lock(matrixMutex_);
+                retreatMatrix_ = objectMatrix_;
+                retreatMatrix_.translation().z() += 0.2;
+            }
 
             geometry_msgs::Pose objectPose, retreatPose, placePose;
-            tf2::convert(objectMatrix, objectPose);
-            tf2::convert(retreatMatrix, retreatPose);
-            tf2::convert(placeMatrix, placePose);
+            tf2::convert(objectMatrix_, objectPose);
+            tf2::convert(retreatMatrix_, retreatPose);
+            tf2::convert(placeMatrix_, placePose);
 
             armMoveGroup_.setPoseTarget(retreatPose);
             armMoveGroup_.move();
@@ -121,7 +133,6 @@ public:
             armMoveGroup_.move();
             ROS_INFO("Pregrasp");
 
-            // gripperMoveGroup_.setNamedTarget("close");
             gripperMoveGroup_.setJointValueTarget(getGripperJointsFromWidth(0.02));
             gripperMoveGroup_.move();
             ROS_INFO("Grasp");
@@ -141,8 +152,6 @@ public:
             armMoveGroup_.setNamedTarget("home");
             armMoveGroup_.move();
             ROS_INFO("Home");
-            // 接收物体的位置信息，然后规划机械臂到指定位置
-            // 同步信息的发布放在jointStateCallback里面了
         }
     }
 
@@ -199,6 +208,12 @@ private:
     double currentRightFingerJoint_;
     const double maxWidth_ = 0.08;
     const double minWidth_ = 0.0;
+
+    // Matrices
+    Eigen::Affine3d objectMatrix_;
+    Eigen::Affine3d retreatMatrix_;
+    Eigen::Affine3d placeMatrix_;
+    std::mutex matrixMutex_;
 
     void setupUDPServer()   
     {
@@ -268,46 +283,117 @@ private:
     {
         if (width < minWidth_)
         {
-            ROS_ERROR_STREAM("The widht must > 0, but the width specified is " << width);
+            ROS_ERROR_STREAM("The width must > 0, but the width specified is " << width);
             width = minWidth_;
         }
         if (width > maxWidth_)
         {
-            ROS_ERROR_STREAM("The widht must > 0, but the width specified is " << width);
+            ROS_ERROR_STREAM("The width must <= 0.08m, but the width specified is " << width);
             width = maxWidth_;
         }
-        return {-width / 2, -width / 2};
+
+        double leftPos = width / 2.0;
+        double rightPos = width / 2.0;
+        return vector<double>{leftPos, rightPos};
     }
-    
+
     void sendO3DELinksInfo()
     {
-        std::string dataToSend;
-        for (auto link : linkWithGeos_)
+        string baseFrame = baseFrame_;
+        std::vector<O3DELinkInfo> o3deLinksInfo;
+
+        for (int i = 0; i < linkWithGeos_.size(); ++i)
         {
-            O3DELinkInfo info = createO3DELinkInfo(link, robotState_->getFrameTransform(link));
-            std::string infoString = info.linkName + ":" +
-                                    std::to_string(info.x) + "," + std::to_string(info.y) + "," + std::to_string(info.z) + "," +
-                                    std::to_string(info.qw) + "," + std::to_string(info.qx) + "," + std::to_string(info.qy) + "," + std::to_string(info.qz);
-            dataToSend += infoString + " ";
+            O3DELinkInfo info;
+            info.linkName = linkWithGeos_[i];
+            Eigen::Affine3d linkMatrix = robotState_->getFrameTransform(info.linkName);
+            Eigen::Quaterniond quat(linkMatrix.rotation());
+
+            info.x = linkMatrix(0, 3);
+            info.y = linkMatrix(1, 3);
+            info.z = linkMatrix(2, 3);
+
+            info.qw = quat.w();
+            info.qx = quat.x();
+            info.qy = quat.y();
+            info.qz = quat.z();
+            o3deLinksInfo.push_back(info);
         }
 
-        sendDataToClients(dataToSend);
+        std::string message = convertO3DELinksInfoToJson(o3deLinksInfo);
+        sendDataToClients(message);
     }
 
-    O3DELinkInfo createO3DELinkInfo(const string &linkName, const Eigen::Affine3d &matrix)
+    std::string convertO3DELinksInfoToJson(const std::vector<O3DELinkInfo> &o3deLinksInfo)
     {
-        O3DELinkInfo linkInfo;
-        geometry_msgs::Pose pose;
-        tf2::convert(matrix, pose);
-        linkInfo.linkName = linkName;
-        linkInfo.x = pose.position.x;
-        linkInfo.y = pose.position.y;
-        linkInfo.z = pose.position.z;
-        linkInfo.qw = pose.orientation.w;
-        linkInfo.qx = pose.orientation.x;
-        linkInfo.qy = pose.orientation.y;
-        linkInfo.qz = pose.orientation.z;
-        return linkInfo;
+        std::ostringstream oss;
+        oss << "[";
+        for (size_t i = 0; i < o3deLinksInfo.size(); ++i)
+        {
+            const O3DELinkInfo &info = o3deLinksInfo[i];
+            oss << "{"
+                << "\"linkName\":\"" << info.linkName << "\","
+                << "\"x\":" << info.x << ","
+                << "\"y\":" << info.y << ","
+                << "\"z\":" << info.z << ","
+                << "\"qw\":" << info.qw << ","
+                << "\"qx\":" << info.qx << ","
+                << "\"qy\":" << info.qy << ","
+                << "\"qz\":" << info.qz
+                << "}";
+            if (i < o3deLinksInfo.size() - 1)
+            {
+                oss << ",";
+            }
+        }
+        oss << "]";
+        return oss.str();
+    }
+
+    // Private function to receive data from clients
+    void receiveDataFromClients()
+    {
+        char buffer[1024];
+        while (true)
+        {
+            ssize_t recvBytes = recvfrom(udpSocket_, buffer, sizeof(buffer) - 1, 0,
+                                         (struct sockaddr *)&clientAddr_, &clientAddrLen_);
+            if (recvBytes < 0)
+            {
+                perror("recvfrom failed");
+            }
+            else
+            {
+                buffer[recvBytes] = '\0'; // Null-terminate the received data
+                std::string receivedData(buffer);
+                ROS_INFO("Received data: %s", receivedData.c_str());
+
+                // Parse the JSON data
+                std::istringstream iss(receivedData);
+                boost::property_tree::ptree pt;
+                boost::property_tree::read_json(iss, pt);
+
+                // Update the object and place matrices
+                {
+                    std::lock_guard<std::mutex> lock(matrixMutex_);
+                    updateMatrixFromJSON(pt, "cup", objectMatrix_);
+                    updateMatrixFromJSON(pt, "dish", placeMatrix_);
+                }
+            }
+        }
+    }
+
+    void updateMatrixFromJSON(const boost::property_tree::ptree &pt, const std::string &key, Eigen::Affine3d &matrix)
+    {
+        double x = pt.get<double>(key + ".x");
+        double y = pt.get<double>(key + ".y");
+        double z = pt.get<double>(key + ".z");
+        double qx = pt.get<double>(key + ".q_x");
+        double qy = pt.get<double>(key + ".q_y");
+        double qz = pt.get<double>(key + ".q_z");
+        double qw = pt.get<double>(key + ".q_w");
+
+        matrix = Eigen::Translation3d(x, y, z) * Eigen::Quaterniond(qw, qx, qy, qz);
     }
 };
 
