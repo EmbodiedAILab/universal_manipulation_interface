@@ -112,7 +112,6 @@ public:
         
         while (ros::ok())
         {   
-            // ROS_INFO ("waiting for msg");
             if (isReady_) {
                 pickAndPlaceAction();
                 isReady_ = false;
@@ -181,39 +180,45 @@ private:
     std::mutex matrixMutex_;
     bool isReady_;
 
-    void setupUDPServer()   
-    {
+    void setupUDPServer() {
         udpSocket_ = socket(AF_INET, SOCK_DGRAM, 0);
-        if (udpSocket_ < 0)
-        {
+        if (udpSocket_ < 0) {
             perror("socket creation failed");
             exit(EXIT_FAILURE);
         }
 
         int broadcastEnable = 1;
-        if (setsockopt(udpSocket_, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) < 0)
-        {
+        if (setsockopt(udpSocket_, SOL_SOCKET, SO_BROADCAST, &broadcastEnable, sizeof(broadcastEnable)) < 0) {
             perror("setsockopt(SO_BROADCAST) failed");
             exit(EXIT_FAILURE);
         }
 
         memset(&serverAddr_, 0, sizeof(serverAddr_));
         serverAddr_.sin_family = AF_INET;
-        serverAddr_.sin_addr.s_addr = inet_addr("10.78.114.255"); // Subnet broadcast address
-        serverAddr_.sin_port = htons(65433);
+        serverAddr_.sin_addr.s_addr = INADDR_ANY;
+        serverAddr_.sin_port = htons(65434);
 
-        ROS_INFO("UDP server set up and broadcasting on port 65433");
+        if (bind(udpSocket_, (const struct sockaddr *)&serverAddr_, sizeof(serverAddr_)) < 0) {
+            perror("bind failed");
+            exit(EXIT_FAILURE);
+        }
+
+        ROS_INFO("UDP server set up and listening on port 65434");
     }
 
-    void sendDataToClients(const std::string &data)
-    {
+    void sendDataToClients(const std::string &data) {
+        struct sockaddr_in broadcastAddr;
+        memset(&broadcastAddr, 0, sizeof(broadcastAddr));
+        broadcastAddr.sin_family = AF_INET;
+        broadcastAddr.sin_addr.s_addr = inet_addr("10.78.114.197"); // 广播地址
+        broadcastAddr.sin_port = htons(65433);
+
         ssize_t sentBytes = sendto(udpSocket_, data.c_str(), data.size(), MSG_CONFIRM,
-                                (const struct sockaddr *)&serverAddr_, sizeof(serverAddr_));
-        if (sentBytes < 0)
-        {
+                                (const struct sockaddr *)&broadcastAddr, sizeof(broadcastAddr));
+        if (sentBytes < 0) {
             perror("sendto failed");
         }
-    }
+    }   
 
     void updateRobotState()
     {
@@ -263,57 +268,41 @@ private:
         return vector<double>{leftPos, rightPos};
     }
 
-    void sendO3DELinksInfo()
+    vector<O3DELinkInfo> sendO3DELinksInfo()
     {
-        string baseFrame = baseFrame_;
-        std::vector<O3DELinkInfo> o3deLinksInfo;
+        vector<O3DELinkInfo> o3deLinksInfo;
+        std::string dataToSend;
 
-        for (int i = 0; i < linkWithGeos_.size(); ++i)
+        for (auto link : linkWithGeos_)
         {
-            O3DELinkInfo info;
-            info.linkName = linkWithGeos_[i];
-            Eigen::Affine3d linkMatrix = robotState_->getFrameTransform(info.linkName);
-            Eigen::Quaterniond quat(linkMatrix.rotation());
-
-            info.x = linkMatrix(0, 3);
-            info.y = linkMatrix(1, 3);
-            info.z = linkMatrix(2, 3);
-
-            info.qw = quat.w();
-            info.qx = quat.x();
-            info.qy = quat.y();
-            info.qz = quat.z();
+            O3DELinkInfo info = createO3DELinkInfo(link, robotState_->getFrameTransform(link));
             o3deLinksInfo.push_back(info);
+            std::string infoString = info.linkName + ":" +
+                                    std::to_string(info.x) + "," + std::to_string(info.y) + "," + std::to_string(info.z) + "," +
+                                    std::to_string(info.qw) + "," + std::to_string(info.qx) + "," + std::to_string(info.qy) + "," + std::to_string(info.qz);
+            // ROS_INFO("Info for %s: %s", info.linkName.c_str(), infoString.c_str());
+            dataToSend += infoString + " ";
         }
 
-        std::string message = convertO3DELinksInfoToJson(o3deLinksInfo);
-        sendDataToClients(message);
+        sendDataToClients(dataToSend);
+        return o3deLinksInfo;
     }
 
-    std::string convertO3DELinksInfoToJson(const std::vector<O3DELinkInfo> &o3deLinksInfo)
+    O3DELinkInfo createO3DELinkInfo(const string &linkName, const Eigen::Affine3d &matrix)
     {
-        std::ostringstream oss;
-        oss << "[";
-        for (size_t i = 0; i < o3deLinksInfo.size(); ++i)
-        {
-            const O3DELinkInfo &info = o3deLinksInfo[i];
-            oss << "{"
-                << "\"linkName\":\"" << info.linkName << "\","
-                << "\"x\":" << info.x << ","
-                << "\"y\":" << info.y << ","
-                << "\"z\":" << info.z << ","
-                << "\"qw\":" << info.qw << ","
-                << "\"qx\":" << info.qx << ","
-                << "\"qy\":" << info.qy << ","
-                << "\"qz\":" << info.qz
-                << "}";
-            if (i < o3deLinksInfo.size() - 1)
-            {
-                oss << ",";
-            }
-        }
-        oss << "]";
-        return oss.str();
+        O3DELinkInfo linkInfo;
+        geometry_msgs::Pose pose;
+        tf2::convert(matrix, pose);
+        linkInfo.linkName = linkName;
+        linkInfo.x = pose.position.x;
+        linkInfo.y = pose.position.y;
+        linkInfo.z = pose.position.z;
+        linkInfo.qw = pose.orientation.w;
+        linkInfo.qx = pose.orientation.x;
+        linkInfo.qy = pose.orientation.y;
+        linkInfo.qz = pose.orientation.z;
+        // linkInfo.print();
+        return linkInfo;
     }
 
     // Private function to receive data from clients
@@ -321,7 +310,7 @@ private:
     {
         char buffer[1024];
         while (true)
-        {
+        {   
             ssize_t recvBytes = recvfrom(udpSocket_, buffer, sizeof(buffer) - 1, 0,
                                          (struct sockaddr *)&clientAddr_, &clientAddrLen_);
             if (recvBytes < 0)
@@ -378,27 +367,27 @@ private:
 
         armMoveGroup_.setPoseTarget(retreatPose);
         armMoveGroup_.move();
-        ROS_INFO("Approach");
+        ROS_INFO("Approach finish");
 
         armMoveGroup_.setPoseTarget(objectPose);
         armMoveGroup_.move();
-        ROS_INFO("Pregrasp");
+        ROS_INFO("Pregrasp finish");
 
         gripperMoveGroup_.setJointValueTarget(getGripperJointsFromWidth(0.02));
         gripperMoveGroup_.move();
-        ROS_INFO("Grasp");
+        ROS_INFO("Grasp finish");
 
         armMoveGroup_.setPoseTarget(retreatPose);
         armMoveGroup_.move();
-        ROS_INFO("Retreat");
+        ROS_INFO("Retreat finish");
 
         armMoveGroup_.setPoseTarget(placePose);
         armMoveGroup_.move();
-        ROS_INFO("PrePlace");
+        ROS_INFO("PrePlace finish");
 
         gripperMoveGroup_.setNamedTarget("open");
         gripperMoveGroup_.move();
-        ROS_INFO("Place");
+        ROS_INFO("Place finish");
 
         armMoveGroup_.setNamedTarget("home");
         armMoveGroup_.move();
