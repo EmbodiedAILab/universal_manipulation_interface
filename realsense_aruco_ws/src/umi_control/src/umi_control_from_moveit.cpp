@@ -352,12 +352,60 @@ private:
         matrix = Eigen::Translation3d(x, y, z) * Eigen::Quaterniond(qw, qx, qy, qz);
     }
 
+    void generateGraspPoseRotateZ180(Eigen::Affine3d& objectPose)
+    {
+        Eigen::Quaterniond rotateZ180(Eigen::AngleAxisd(M_PI, Eigen::Vector3d::UnitZ()));
+
+        // 获取当前的物体姿态
+        Eigen::Quaterniond objectOrientation(objectPose.rotation());
+
+        // 计算新的姿态
+        // Eigen::Quaterniond graspOrientation = objectOrientation * flipZ;
+        Eigen::Quaterniond graspOrientation = objectOrientation * rotateZ180;
+
+        // 应用新的姿态到物体的位姿上
+        objectPose.rotate(graspOrientation);
+
+        // 打印新的位姿
+        Eigen::Vector3d translation = objectPose.translation();
+        Eigen::Quaterniond newOrientation(objectPose.rotation());
+
+        std::cout << "New grasp pose: " << std::endl;
+        std::cout << "Translation - x: " << translation.x() << ", y: " << translation.y() << ", z: " << translation.z() << std::endl;
+        std::cout << "Orientation - w: " << newOrientation.w() << ", x: " << newOrientation.x() << ", y: " << newOrientation.y() << ", z: " << newOrientation.z() << std::endl;
+    }
+
+        void generateGraspPoseRotateY270(Eigen::Affine3d& objectPose)
+    {
+        Eigen::Quaterniond rotateY270(Eigen::AngleAxisd(-M_PI_2, Eigen::Vector3d::UnitY()));
+
+        // 获取当前的物体姿态
+        Eigen::Quaterniond objectOrientation(objectPose.rotation());
+
+        // 计算新的姿态
+        // Eigen::Quaterniond graspOrientation = objectOrientation * flipZ;
+        Eigen::Quaterniond graspOrientation = objectOrientation * rotateY270;
+
+        // 应用新的姿态到物体的位姿上
+        objectPose.rotate(graspOrientation);
+
+        // 打印新的位姿
+        Eigen::Vector3d translation = objectPose.translation();
+        Eigen::Quaterniond newOrientation(objectPose.rotation());
+
+        std::cout << "New grasp pose: " << std::endl;
+        std::cout << "Translation - x: " << translation.x() << ", y: " << translation.y() << ", z: " << translation.z() << std::endl;
+        std::cout << "Orientation - w: " << newOrientation.w() << ", x: " << newOrientation.x() << ", y: " << newOrientation.y() << ", z: " << newOrientation.z() << std::endl;
+    }
+
     void pickAndPlaceAction(){
+        generateGraspPoseRotateZ180(objectMatrix_);
+        generateGraspPoseRotateY270(placeMatrix_);
         {
             std::lock_guard<std::mutex> lock(matrixMutex_);
             retreatMatrix_ = objectMatrix_;
             retreatMatrix_.translation().z() += 0.2;
-            placeMatrix_.translation().z() += 0.1;
+            // placeMatrix_.translation().z() += 0.1;
         }
 
         geometry_msgs::Pose objectPose, retreatPose, placePose;
