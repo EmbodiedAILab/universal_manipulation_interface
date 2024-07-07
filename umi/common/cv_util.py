@@ -487,6 +487,47 @@ def get_image_transform(in_res, out_res, crop_ratio:float = 1.0, bgr_to_rgb: boo
     
     return transform
 
+def get_image_transform2(in_res, out_res, crop_ratio:float = 1.0, bgr_to_rgb: bool=False):
+    iw, ih = in_res
+    ow, oh = out_res
+    interp_method = cv2.INTER_AREA
+    def transform(img: np.ndarray):
+        assert img.shape == ((ih,iw,3))
+        # crop
+        src_h, src_w = img.shape[:2]
+        print(src_h, src_w)
+        dst_h, dst_w = oh, ow
+
+        # 判断应该按哪个边做等比缩放
+        h = dst_w * (float(src_h) / src_w)  # 按照ｗ做等比缩放
+        w = dst_h * (float(src_w) / src_h)  # 按照h做等比缩放
+
+        h = int(h)
+        w = int(w)
+
+        if h <= dst_h:
+            image_dst = cv2.resize(img, (dst_w, int(h)))
+        else:
+            image_dst = cv2.resize(img, (int(w), dst_h))
+
+        h_, w_ = image_dst.shape[:2]
+        print(h_, w_)
+
+        top = int((dst_h - h_) / 2)
+        down = int((dst_h - h_ + 1) / 2)
+        left = int((dst_w - w_) / 2)
+        right = int((dst_w - w_ + 1) / 2)
+
+        value = [0, 0, 0]
+        borderType = cv2.BORDER_CONSTANT
+        print(top, down, left, right)
+        image_dst = cv2.copyMakeBorder(image_dst, top, down, left, right, borderType, None, value)
+        # resize
+        # img = cv2.resize(img, out_res, interpolation=interp_method)
+        return image_dst
+
+    return transform
+
 def get_gripper_canonical_polygon_rs():
     left_pts = [
         [122,695],
@@ -517,3 +558,18 @@ def draw_gripper_mask(img, color=(0, 0, 0), mirror=True, gripper=True, finger=Tr
         flag = cv2.LINE_AA if use_aa else cv2.LINE_8
         cv2.fillPoly(img, [pts], color=color, lineType=flag)
     return img
+# def click_event(event, x, y, flags, param):
+#     if event == cv2.EVENT_LBUTTONDOWN:
+#         print(f"Clicked at: ({x}, {y})")
+#         font = cv2.FONT_HERSHEY_SIMPLEX
+#         cv2.putText(img, f"({x}, {y})", (x, y), font, 0.5, (255, 0, 0), 2)
+#         cv2.imshow('test', img)
+
+if __name__ == "__main__":
+    image_cv2 = cv2.imread("../../save.jpg")
+    img = draw_predefined_mask(image_cv2, color=(0, 0, 0),
+         mirror=False, gripper=True, finger=False)
+    cv2.imshow("test", img)
+    # cv2.setMouseCallback('test', click_event)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
