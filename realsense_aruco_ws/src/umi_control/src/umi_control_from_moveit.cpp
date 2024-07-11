@@ -113,7 +113,9 @@ public:
         while (ros::ok())
         {   
             if (isReady_) {
+                sendDataToClients("START");
                 pickAndPlaceAction();
+                sendDataToClients("STOP");
                 isReady_ = false;
             }
         }
@@ -196,21 +198,21 @@ private:
         memset(&serverAddr_, 0, sizeof(serverAddr_));
         serverAddr_.sin_family = AF_INET;
         serverAddr_.sin_addr.s_addr = INADDR_ANY;
-        serverAddr_.sin_port = htons(65434);
+        serverAddr_.sin_port = htons(65439);
 
         if (bind(udpSocket_, (const struct sockaddr *)&serverAddr_, sizeof(serverAddr_)) < 0) {
             perror("bind failed");
             exit(EXIT_FAILURE);
         }
 
-        ROS_INFO("UDP server set up and listening on port 65434");
+        ROS_INFO("UDP server set up and listening on port 65439");
     }
 
     void sendDataToClients(const std::string &data) {
         struct sockaddr_in broadcastAddr;
         memset(&broadcastAddr, 0, sizeof(broadcastAddr));
         broadcastAddr.sin_family = AF_INET;
-        broadcastAddr.sin_addr.s_addr = inet_addr("10.78.114.197"); // 广播地址
+        broadcastAddr.sin_addr.s_addr = inet_addr("10.78.114.255"); // 广播地址
         broadcastAddr.sin_port = htons(65433);
 
         ssize_t sentBytes = sendto(udpSocket_, data.c_str(), data.size(), MSG_CONFIRM,
@@ -401,11 +403,18 @@ private:
     void pickAndPlaceAction(){
         generateGraspPoseRotateZ180(objectMatrix_);
         generateGraspPoseRotateY270(placeMatrix_);
+        Eigen::Affine3d tempMatrix;
+        tempMatrix = placeMatrix_;
+        tempMatrix(0,3) = objectMatrix_(0,3);
+        tempMatrix(1,3) = objectMatrix_(1,3);
+        tempMatrix(2,3) = objectMatrix_(2,3);
+        objectMatrix_ = tempMatrix;
+        objectMatrix_.translation().z() += 0.025;
         {
             std::lock_guard<std::mutex> lock(matrixMutex_);
             retreatMatrix_ = objectMatrix_;
-            retreatMatrix_.translation().z() += 0.2;
-            // placeMatrix_.translation().z() += 0.1;
+            retreatMatrix_.translation().z() += 0.05;
+            placeMatrix_.translation().z() += 0.05;
         }
 
         geometry_msgs::Pose objectPose, retreatPose, placePose;
@@ -428,6 +437,10 @@ private:
         armMoveGroup_.setPoseTarget(retreatPose);
         armMoveGroup_.move();
         ROS_INFO("Retreat finish");
+
+        armMoveGroup_.setNamedTarget("home");
+        armMoveGroup_.move();
+        ROS_INFO("Observation pose finish");
 
         armMoveGroup_.setPoseTarget(placePose);
         armMoveGroup_.move();
