@@ -203,7 +203,7 @@ class MyHandler(FileSystemEventHandler):
                 print(f"Stopped watching {folder}")
 
 if __name__ == "__main__":
-    recording_folder = os.getenv('RECORDING_FOLDER', '/home/robot/Dev/test')
+    recording_folder = os.getenv('RECORDING_FOLDER')
 
     event_handler = MyHandler(recording_folder)
     observer = Observer()
