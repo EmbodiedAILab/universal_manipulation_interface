@@ -337,22 +337,14 @@ def get_mirror_crop_slices(img_shape=(1080,1920), left=True):
 
 def get_gripper_canonical_polygon():
     left_pts = [
-        # [1352, 1730],
-        # [1100, 1700],
-        # [650, 1500],
-        # [0, 1350],
-        # [0, 2028],
-        # [1352, 2704]
-        [122,695],
-        [303,498],
-        [418,524],
-        [390,635],
-        [640,646],
-        [640,720],
-        [238,720]
+        [1352, 1730],
+        [1100, 1700],
+        [650, 1500],
+        [0, 1350],
+        [0, 2028],
+        [1352, 2704]
     ]
-    # resolution = [2028, 2704]
-    resolution = [720, 1280]
+    resolution = [2028, 2704]
     left_coords = pixel_coords_to_canonical(left_pts, resolution)
     right_coords = left_coords.copy()
     right_coords[:,0] *= -1
@@ -487,18 +479,15 @@ def get_image_transform(in_res, out_res, crop_ratio:float = 1.0, bgr_to_rgb: boo
     
     return transform
 
-def get_image_transform2(input_res, output_res, crop_ratio:float = 1.0, bgr_to_rgb: bool=False):
-    iw, ih = input_res
-    ow, oh = output_res
+def get_image_transform2(in_res, out_res, crop_ratio:float = 1.0, bgr_to_rgb: bool=False):
+    iw, ih = in_res
+    ow, oh = out_res
     interp_method = cv2.INTER_AREA
-    c_slice = slice(None)
-    if bgr_to_rgb:
-        c_slice = slice(None, None, -1)
     def transform(img: np.ndarray):
         assert img.shape == ((ih,iw,3))
         # crop
         src_h, src_w = img.shape[:2]
-        # print(src_h, src_w)
+        print(src_h, src_w)
         dst_h, dst_w = oh, ow
 
         # 判断应该按哪个边做等比缩放
@@ -514,7 +503,7 @@ def get_image_transform2(input_res, output_res, crop_ratio:float = 1.0, bgr_to_r
             image_dst = cv2.resize(img, (int(w), dst_h))
 
         h_, w_ = image_dst.shape[:2]
-        # print(h_, w_)
+        print(h_, w_)
 
         top = int((dst_h - h_) / 2)
         down = int((dst_h - h_ + 1) / 2)
@@ -523,9 +512,8 @@ def get_image_transform2(input_res, output_res, crop_ratio:float = 1.0, bgr_to_r
 
         value = [0, 0, 0]
         borderType = cv2.BORDER_CONSTANT
-        # print(top, down, left, right)
+        print(top, down, left, right)
         image_dst = cv2.copyMakeBorder(image_dst, top, down, left, right, borderType, None, value)
-        image_dst = image_dst[:, :, c_slice]
         # resize
         # img = cv2.resize(img, out_res, interpolation=interp_method)
         return image_dst
