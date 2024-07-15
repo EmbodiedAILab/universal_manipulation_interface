@@ -88,6 +88,7 @@ public:
 
         codec_ctx->codec_id = codec->id;
         codec_ctx->bit_rate = 11080647;
+        //codec_ctx->bit_rate = 400000;
         codec_ctx->width = width;
         codec_ctx->height = height;
         codec_ctx->time_base = (AVRational) {1, fps};
@@ -97,6 +98,11 @@ public:
         codec_ctx->coder_type = AVMEDIA_TYPE_VIDEO;
         codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
         ROS_INFO("codec_id: %d, pix_fmt: %d", codec_ctx->codec_id, codec_ctx->pix_fmt);
+        codec_ctx->max_b_frames = 1;
+        codec_ctx->pix_fmt = AV_PIX_FMT_YUVJ420P;
+        AVDictionary *meta = nullptr;
+        av_dict_alloc(meta);
+        video_stream->metadata
         if (fmt_ctx->oformat->flags & AVFMT_GLOBALHEADER)
             codec_ctx->flags |= AV_CODEC_FLAG_GLOBAL_HEADER;
 
@@ -120,6 +126,14 @@ public:
             ROS_ERROR("Could not copy the stream parameters");
             return ;
         }
+        avcodec_parameters_from_context(video_stream->codecpar, codecCtx);
+
+        video_stream->codecpar->codec_id = fmt_ctx->oformat->video_codec;
+        video_stream->codecpar->codec_type = AVMEDIA_TYPE_VIDEO;
+        video_stream->codecpar->width = codec_ctx->width;
+        video_stream->codecpar->height = codec_ctx->height;
+        video_stream->codecpar->format = codec_ctx->pix_fmt;
+        video_stream->time_base = codec_ctx->time_base;
 
         // 打开输出文件
         if (!(fmt_ctx->oformat->flags & AVFMT_NOFILE)) {
@@ -250,6 +264,7 @@ private:
     AVCodec *codec = nullptr;
     AVCodecContext *codec_ctx = nullptr;
     AVFrame *frame = nullptr;
+    AVFrame *pFrameRGB = nullptr;
     struct SwsContext *sws_ctx = nullptr;
     AVPacket* pkt= av_packet_alloc();
     int frame_number=0;
