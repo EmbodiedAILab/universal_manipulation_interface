@@ -309,7 +309,7 @@ def main(input, output, robot_config,
                         match_img = episode_first_frame_map[match_episode_id]
                         ih, iw, _ = match_img.shape
                         oh, ow, _ = vis_img.shape
-                        tf = get_image_transform(
+                        tf = get_image_transform2(
                             input_res=(iw, ih), 
                             output_res=(ow, oh), 
                             bgr_to_rgb=False)

@@ -127,26 +127,19 @@ class BimanualUmiRsEnv:
                 fps = 30
                 buf = 1
                 bit_rate = 3000*1000
-
-                # is_mirror = None
-                # if mirror_swap:
-                #     mirror_mask = np.ones((224,224,3),dtype=np.uint8)
-                #     mirror_mask = draw_predefined_mask(
-                #         mirror_mask, color=(0,0,0), mirror=True, gripper=False, finger=False)
-                #     is_mirror = (mirror_mask[...,0] == 0)
                 
                 def tf(data, input_res=res):
                     color_tf = get_image_transform2(
-                        input_res=input_res,
-                        output_res=obs_image_resolution, 
+                        in_res=input_res,
+                        out_res=obs_image_resolution, 
                         # obs output rgb
                         bgr_to_rgb=True)
                     color_transform = color_tf
                     if obs_float32:
                         color_transform = lambda x: color_tf(x).astype(np.float32) / 255
-                    data['color'] = color_transform(data['color'])
                     data['color'] = draw_gripper_mask(data['color'], color=(0,0,0), 
                             mirror=no_mirror, gripper=True, finger=False, use_aa=True)
+                    data['color'] = color_transform(data['color'])
                     return data
                 transform.append(tf)
             else:
@@ -196,8 +189,8 @@ class BimanualUmiRsEnv:
             def vis_tf(data, input_res=res):
                 img = data['color']
                 f = get_image_transform2(
-                    input_res=input_res,
-                    output_res=(rw,rh),
+                    in_res=input_res,
+                    out_res=(rw,rh),
                     bgr_to_rgb=False
                 )
                 img = f(img)
