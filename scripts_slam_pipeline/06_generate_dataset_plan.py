@@ -101,7 +101,7 @@ def main(input, output, tcp_offset, tx_slam_tag,
     # y axis in camera frame
     cam_to_center_height = 0.086 # constant for UMI
     # optical center to mounting screw, positive is when optical center is in front of the mount
-    cam_to_mount_offset = 0.01465 # constant for GoPro Hero 9,10,11
+    cam_to_mount_offset = -0.01465 # constant for GoPro Hero 9,10,11
     cam_to_tip_offset = cam_to_mount_offset + tcp_offset
 
     pose_cam_tcp = np.array([0, cam_to_center_height, cam_to_tip_offset, 0,0,0])
