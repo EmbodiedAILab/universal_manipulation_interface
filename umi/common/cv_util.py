@@ -522,16 +522,18 @@ def get_image_transform2(in_res, out_res, crop_ratio:float = 1.0, bgr_to_rgb: bo
 
 def get_gripper_canonical_polygon_rs():
     left_pts = [
-        [122,695],
-        [303,498],
-        [418,524],
-        [390,635],
-        [640,646],
-        [640,720],
-        [238,720]
+        [2,122],
+        [13,148],
+        [32,138],
+        [50,137],
+        [71,144],
+        [70,162],
+        [93,167],
+        [112,166],
+        [112,176],
+        [2,176]
     ]
-    # resolution = [2028, 2704]
-    resolution = [720, 1280]
+    resolution = [224, 224]
     left_coords = pixel_coords_to_canonical(left_pts, resolution)
     right_coords = left_coords.copy()
     right_coords[:,0] *= -1
@@ -550,18 +552,18 @@ def draw_gripper_mask(img, color=(0, 0, 0), mirror=True, gripper=True, finger=Tr
         flag = cv2.LINE_AA if use_aa else cv2.LINE_8
         cv2.fillPoly(img, [pts], color=color, lineType=flag)
     return img
-# def click_event(event, x, y, flags, param):
-#     if event == cv2.EVENT_LBUTTONDOWN:
-#         print(f"Clicked at: ({x}, {y})")
-#         font = cv2.FONT_HERSHEY_SIMPLEX
-#         cv2.putText(img, f"({x}, {y})", (x, y), font, 0.5, (255, 0, 0), 2)
-#         cv2.imshow('test', img)
+def click_event(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        print(f"Clicked at: ({x}, {y})")
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(img, f"({x}, {y})", (x, y), font, 0.5, (255, 0, 0), 2)
+        cv2.imshow('test', img)
 
 if __name__ == "__main__":
-    image_cv2 = cv2.imread("../../save.jpg")
-    img = draw_predefined_mask(image_cv2, color=(0, 0, 0),
-         mirror=False, gripper=True, finger=False)
+    img = cv2.imread("../../resize.jpg")
+    # img = draw_gripper_mask(img, color=(0, 0, 0),
+    #      mirror=False, gripper=True, finger=False)
     cv2.imshow("test", img)
-    # cv2.setMouseCallback('test', click_event)
+    cv2.setMouseCallback('test', click_event)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
