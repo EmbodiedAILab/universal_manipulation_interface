@@ -22,7 +22,7 @@ from collections import defaultdict
 from umi.common.cv_util import (
     parse_fisheye_intrinsics,
     FisheyeRectConverter,
-    get_image_transform, 
+    get_image_transform2,
     draw_predefined_mask,
     draw_gripper_mask,
     inpaint_tag,
@@ -163,7 +163,7 @@ def main(input, output, out_res, out_fov, compression_level,
         name = f'camera{cam_id}_rgb'
         _ = out_replay_buffer.data.require_dataset(
             name=name,
-            shape=(out_replay_buffer['robot0_eef_pos'].shape[0],) + out_res + (3,),
+            shape=(out_replay_buffer['robot0_eef_pos'].shape[0],) + (out_res[1],out_res[0]) + (3,),
             chunks=(1,) + out_res + (3,),
             compressor=img_compressor,
             dtype=np.uint8
@@ -172,7 +172,7 @@ def main(input, output, out_res, out_fov, compression_level,
     def video_to_zarr(replay_buffer, mp4_path, tasks):
         # pkl_path = os.path.join(os.path.dirname(mp4_path), 'tag_detection.pkl')
         # tag_detection_results = pickle.load(open(pkl_path, 'rb'))
-        resize_tf = get_image_transform(
+        resize_tf = get_image_transform2(
             in_res=(iw, ih),
             out_res=out_res
         )
@@ -215,7 +215,6 @@ def main(input, output, out_res, out_fov, compression_level,
                     
                     # do current task
                     img = frame.to_ndarray(format='rgb24')
-                    # cv2.imwrite("./save.jpg", img)
 
                     # inpaint tags
                     # this_det = tag_detection_results[frame_idx]
@@ -238,7 +237,7 @@ def main(input, output, out_res, out_fov, compression_level,
 
                     img = draw_gripper_mask(img, color=(0, 0, 0),
                         mirror=no_mirror, gripper=True, finger=False)
-
+                    cv2.imwrite("./save.jpg", img)
                     # compress image
                     img_array[buffer_idx] = img
                     buffer_idx += 1

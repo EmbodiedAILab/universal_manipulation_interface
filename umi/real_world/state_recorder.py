@@ -239,7 +239,7 @@ class VideoRecorder(mp.Process):
             # number of apperance means repeats
             n_repeats = len(local_idxs)
         
-        print(f"global_idx: {self.next_global_idx}, self start_time: {self.start_time}, frame_time: {frame_time}")
+        print(f"global_idx: {global_idxs}, self start_time: {self.start_time}, frame_time: {frame_time}")
 
         self.img_queue.put_next_view({
             'img': img,
@@ -273,7 +273,7 @@ class VideoRecorder(mp.Process):
                     'timestamp': gripper_state['gripper_timestamp'].item(0)-self.start_time,
                     'width': gripper_state['gripper_position'].item(0)
             })
-            # print(f"gripper state: {gripper_state}\nframe width: {frame_gripper}")
+            print(f"gripper state: {gripper_state['gripper_position']}  | timestamp: {gripper_state['gripper_timestamp']}")
 
     # ========= interval API ===========
     def _reset_state(self):

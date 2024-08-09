@@ -11,7 +11,7 @@ import time
 from multiprocessing.managers import SharedMemoryManager
 from umi.real_world.uvc_camera import UvcCamera, VideoRecorder
 from umi.common.usb_util import reset_all_elgato_devices, get_sorted_v4l_paths
-from polymetis import RobotInterface
+# from polymetis import RobotInterface
 
 
 def test():
@@ -19,7 +19,9 @@ def test():
     # Required to workaround a firmware bug.
     reset_all_elgato_devices()
     v4l_paths = get_sorted_v4l_paths()
+    print(v4l_paths)
     v4l_path = v4l_paths[0]
+    print(v4l_path)
     
     with SharedMemoryManager() as shm_manager:
         # video_recorder = VideoRecorder.create_h264(
@@ -41,13 +43,14 @@ def test():
         with UvcCamera(
             shm_manager=shm_manager,
             dev_video_path=v4l_path,
-            resolution=(1920, 1080),
+            resolution=(1280, 720),
+            # resolution=(1920, 1080),
             capture_fps=30,
             video_recorder=video_recorder,
             put_downsample=False,
             verbose=True
         ) as camera:
-            cv2.setNumThreads(1) 
+            cv2.setNumThreads(2) 
             
             video_path = 'data_local/test.mp4'
             rec_start_time = time.time() + 2
@@ -57,8 +60,8 @@ def test():
             while True:
                 data = camera.get(out=data)
                 t = time.time()
-                # print('capture_latency', data['receive_timestamp']-data['capture_timestamp'], 'receive_latency', t - data['receive_timestamp'])
-                # print('receive', t - data['receive_timestamp'])
+                print('capture_latency', data['camera_receive_timestamp']-data['camera_capture_timestamp'], 'receive_latency', t - data['camera_receive_timestamp'])
+                #print('receive', t - data['camera_receive_timestamp'])
 
                 dt = time.time() - data['timestamp']
                 # print(dt)
@@ -66,7 +69,8 @@ def test():
 
                 bgr = data['color']
                 # print(bgr.shape)
-                # cv2.imshow('default', bgr)
+                cv2.imshow('default', bgr)
+                cv2.waitKey(1)
                 # key = cv2.pollKey()
                 # if key == ord('q'):
                 #     break
