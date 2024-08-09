@@ -137,9 +137,9 @@ class BimanualUmiRsEnv:
                     color_transform = color_tf
                     if obs_float32:
                         color_transform = lambda x: color_tf(x).astype(np.float32) / 255
+                    data['color'] = color_transform(data['color'])
                     data['color'] = draw_gripper_mask(data['color'], color=(0,0,0), 
                             mirror=no_mirror, gripper=True, finger=False, use_aa=True)
-                    data['color'] = color_transform(data['color'])
                     return data
                 transform.append(tf)
             else:

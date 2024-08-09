@@ -70,6 +70,8 @@ from umi.common.pose_util import pose_to_mat, mat_to_pose
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
+# move_forward = True
+
 def solve_table_collision(ee_pose, gripper_width, height_threshold):
     finger_thickness = 25.5 / 1000
     keypoints = list()
@@ -81,6 +83,34 @@ def solve_table_collision(ee_pose, gripper_width, height_threshold):
     transformed_keypoints = np.transpose(rot_mat @ np.transpose(keypoints)) + ee_pose[:3]
     delta = max(height_threshold - np.min(transformed_keypoints[:, 2]), 0)
     ee_pose[2] += delta
+    # if ee_pose[2] < 0.10:
+    #     if move_forward == True:
+    #         ee_pose[0] += 0.030
+    #         move_forward = False
+    #         print("move forward")
+
+# def solve_table_collision(ee_pose, gripper_width, height_threshold):
+#     tcp_offset_manual = 0.017        # 夹爪往前的距离，不是单纯的向下，单位为米
+#     collision_detect_thres = 0.12   # 距离桌面多高，开始启用碰撞检测，z方向的距离，单位为米
+#     keypoint = [0, 0, tcp_offset_manual]
+#     rot_mat = st.Rotation.from_rotvec(ee_pose[3:6]).as_matrix()
+#     # print('ee_pose size:', np.size(ee_pose))
+#     transformed_keypoint= np.transpose(rot_mat @ np.transpose(keypoint)) + ee_pose[:3]
+#     if transformed_keypoint[2] < height_threshold:
+#         # print('1')
+#         scale = (height_threshold - ee_pose[2]) / (transformed_keypoint[2] - ee_pose[2])
+#         ee_pose[0] += (transformed_keypoint[0] - ee_pose[0]) * scale
+#         ee_pose[1] += (transformed_keypoint[1] - ee_pose[1]) * scale
+#         ee_pose[2] += (transformed_keypoint[2] - ee_pose[2]) * scale
+#     if transformed_keypoint[2] > height_threshold and transformed_keypoint[2] < height_threshold + collision_detect_thres:
+#         # print('2')
+#         ee_pose[0] = transformed_keypoint[0]
+#         ee_pose[1] = transformed_keypoint[1] * 1.01
+#         # ee_pose[2] += (transformed_keypoint[2] - ee_pose[2])
+
+def solve_gripper_width(gripper_width):
+    if gripper_width < 0.068:
+        gripper_width = 0.050
 
 def solve_sphere_collision(ee_poses, robots_config):
     num_robot = len(robots_config)
@@ -290,6 +320,7 @@ def main(input, output, robot_config,
 
                 t_start = time.monotonic()
                 iter_idx = 0
+                # move_forward = True
                 while True:
                     # calculate timing
                     t_cycle_end = t_start + (iter_idx + 1) * dt
@@ -418,6 +449,12 @@ def main(input, output, robot_config,
                             ee_pose=target_pose[robot_idx],
                             gripper_width=gripper_target_pos[robot_idx],
                             height_threshold=robots_config[robot_idx]['height_threshold'])
+                        # print(target_pose)
+                        # if len(target_pose) > 6 and target_pose[robot_idx * 7 + 2] < 0.10:
+                        #     if move_forward == True:
+                        #         target_pose[robot_idx * 7] += 0.030
+                        #         move_forward = False 
+                        #         print("move forward")
                     
                     # solve collison between two robots
                     solve_sphere_collision(
@@ -502,6 +539,18 @@ def main(input, output, robot_config,
                                     gripper_width=target_pose[robot_idx * 7 + 6],
                                     height_threshold=robots_config[robot_idx]['height_threshold']
                                 )
+                                print(target_pose)
+                                print('== target gripper width:', target_pose[robot_idx * 7 + 6])
+                                if target_pose[robot_idx * 7 + 6] < 0.070: 
+                                    target_pose[robot_idx * 7 + 6] = 0.040
+
+                                # if target_pose[robot_idx * 7 + 2] < 0.10:
+                                #     if move_forward == True:
+                                #         target_pose[robot_idx * 7] += 0.030
+                                #         move_forward = False 
+                                #         print("move forward")
+                                
+                                # solve_gripper_width(gripper_width=target_pose[robot_idx * 7 + 6])
                             
                             # solve collison between two robots
                             solve_sphere_collision(
