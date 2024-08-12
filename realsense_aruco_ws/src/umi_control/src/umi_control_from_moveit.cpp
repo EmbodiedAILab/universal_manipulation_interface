@@ -15,6 +15,7 @@
 #include <sensor_msgs/Joy.h>
 #include <sensor_msgs/JointState.h>
 #include <geometry_msgs/Twist.h>
+#include <geometry_msgs/Quaternion.h>
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <moveit/planning_interface/planning_interface.h>
 #include <moveit/robot_model_loader/robot_model_loader.h>
@@ -82,6 +83,7 @@ public:
         jointNames_ = armMoveGroup_.getVariableNames();
         linkWithGeos_ = robotModel_->getLinkModelNamesWithCollisionGeometry();
         robotState_ = armMoveGroup_.getCurrentState();
+        // armMoveGroup_.setMaxVelocityScalingFactor(0.1);
         isReady_ = false;
 
         robotStateSub_ = nh_.subscribe("joint_states", 1, &UmiMoveitController::jointStatesCallback, this);
@@ -417,11 +419,29 @@ private:
             placeMatrix_.translation().z() += 0.05;
         }
 
-        geometry_msgs::Pose objectPose, retreatPose, placePose;
+        Eigen::Affine3d newPickMatrix = Eigen::Translation3d(objectMatrix_(0,3),objectMatrix_(1,3),objectMatrix_(2,3)) * Eigen::Quaterniond(-0.199, 0.679, 0.678, -0.199);
+
+        geometry_msgs::Pose objectPose, retreatPose, placePose, newPickPose;
         tf2::convert(objectMatrix_, objectPose);
         tf2::convert(retreatMatrix_, retreatPose);
         tf2::convert(placeMatrix_, placePose);
+        tf2::convert(newPickMatrix, newPickPose);
 
+        geometry_msgs::Quaternion inclinedOrientation;
+        inclinedOrientation.w = -0.199;
+        inclinedOrientation.x = 0.679;
+        inclinedOrientation.y = 0.678;
+        inclinedOrientation.z = -0.199;
+        // inclinedOrientation.w = -0.340;
+        // inclinedOrientation.x = 0.608;
+        // inclinedOrientation.y = 0.629;
+        // inclinedOrientation.z = -0.346;
+        objectPose.orientation = inclinedOrientation;
+        retreatPose.orientation = inclinedOrientation;
+        placePose.orientation = inclinedOrientation;
+
+        std::cout << "pose: " << objectPose.position.x << " " << objectPose.position.y << " " << objectPose.position.z << " " << objectPose.orientation.x << " "  << objectPose.orientation.y << " "  << objectPose.orientation.z << " "  << objectPose.orientation.w << std::endl;
+        std::cout << "pose: " << newPickPose.position.x << " " << newPickPose.position.y << " " << newPickPose.position.z << " " << newPickPose.orientation.x << " "  << newPickPose.orientation.y << " "  << newPickPose.orientation.z << " "  << newPickPose.orientation.w << std::endl;
         armMoveGroup_.setPoseTarget(retreatPose);
         armMoveGroup_.move();
         ROS_INFO("Approach finish");

@@ -8,6 +8,8 @@ controller_list:
       - wrist_1_joint
       - wrist_2_joint
       - wrist_3_joint
+    # max_velocity_scaling_factor: 0.1
+    # max_acceleration_scaling_factor: 0.1
   - name: fake_gripper_controller
     type: $(arg fake_execution_type)
     joints:
