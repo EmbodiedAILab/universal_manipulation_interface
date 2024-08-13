@@ -62,6 +62,9 @@ def main(output, robot_ip, gripper_ip, vis_camera_idx, init_joints, gripper_spee
                 grippers_config=grippers_config,
                 n_obs_steps=2,
                 obs_image_resolution=(256,256),
+                # collect gopro
+                # video_capture_resolution=(1920,1080),
+                # multi_cam_vis_resolution=(1920,1080),
                 frequency=frequency,
                 init_joints=init_joints,
                 enable_multi_cam_vis=True,
