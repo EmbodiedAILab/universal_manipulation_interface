@@ -5,10 +5,10 @@ import time
 import shutil
 import math
 from multiprocessing.managers import SharedMemoryManager
-from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
-from umi.real_world.wsg_controller import WSGController
-from umi.real_world.dh_controller import DHController
-# from umi.real_world.franka_interpolation_controller import FrankaInterpolationController
+# Switched to sim controller
+from umi.sim_world.sim_arm_controller import SimArmController
+from umi.sim_world.sim_gripper_controller import SimGripperController
+
 from umi.real_world.multi_uvc_camera import MultiUvcCamera, VideoRecorder
 from diffusion_policy.common.timestamp_accumulator import (
     TimestampActionAccumulator,
@@ -27,7 +27,7 @@ from umi.common.pose_util import pose_to_pos_rot
 from umi.common.interpolation_util import get_interp1d, PoseInterpolator
 
 
-class BimanualUmiRsEnv:
+class BimanualUmiSimEnv:
     def __init__(self, 
             # required params
             output_dir,
@@ -230,12 +230,12 @@ class BimanualUmiRsEnv:
             j_init = None
 
         assert len(robots_config) == len(grippers_config)
-        robots: List[RTDEInterpolationController] = list()
-        grippers: List[DHController] = list()
+        robots: List[SimArmController] = list()
+        grippers: List[SimGripperController] = list()
         for rc in robots_config:
             if rc['robot_type'].startswith('ur5'):
                 assert rc['robot_type'] in ['ur5', 'ur5e']
-                this_robot = RTDEInterpolationController(
+                this_robot = SimArmController(
                     shm_manager=shm_manager,
                     robot_ip=rc['robot_ip'],
                     frequency=500 if rc['robot_type'] == 'ur5e' else 125,
@@ -254,36 +254,20 @@ class BimanualUmiRsEnv:
                     receive_keys=None,
                     receive_latency=rc['robot_obs_latency']
                 )
-            elif rc['robot_type'].startswith('franka'):
-                this_robot = FrankaInterpolationController(
-                    shm_manager=shm_manager,
-                    robot_ip=rc['robot_ip'],
-                    frequency=200,
-                    Kx_scale=1.0,
-                    Kxd_scale=np.array([2.0,1.5,2.0,1.0,1.0,1.0]),
-                    verbose=False,
-                    receive_latency=rc['robot_obs_latency']
-                )
             else:
                 raise NotImplementedError()
             robots.append(this_robot)
 
         for gc in grippers_config:
             if gc['robot_type'].startswith('dh'):
-                this_gripper = DHController(
+                this_gripper = SimGripperController(
                     shm_manager=shm_manager,
                     port=gc['gripper_port'],
                     receive_latency=gc['gripper_obs_latency'],
                     use_meters=True
                 )
             else:
-                this_gripper = WSGController(
-                    shm_manager=shm_manager,
-                    hostname=gc['gripper_ip'],
-                    port=gc['gripper_port'],
-                    receive_latency=gc['gripper_obs_latency'],
-                    use_meters=True
-                )
+                raise NotImplementedError()
             grippers.append(this_gripper)
 
         self.camera = camera
