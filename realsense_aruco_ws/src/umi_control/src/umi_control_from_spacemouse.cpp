@@ -109,6 +109,7 @@ public:
             while (ros::ok())
             {
                 double duration = (ros::Time::now() - startTime).toSec();
+                std::cout << "duration: " << duration << std::endl;
                 updateRobotState();
                 
                 eefTwist_.linear.x = eefTwist_.linear.y = eefTwist_.linear.z = 0;
@@ -324,6 +325,7 @@ private:
     {
         double duration = (joyPtr->header.stamp - lastSpaceMouseTime_).toSec();
         duration = duration > maxTimeout_ ? maxTimeout_ : duration;
+        std::cout << "=== duration: " << duration << std::endl;
 
         eefTwist_.linear.x = eefTwist_.linear.y = eefTwist_.linear.z = 0;
         eefTwist_.angular.x = eefTwist_.angular.y = eefTwist_.angular.z = 0;
@@ -336,12 +338,16 @@ private:
         eefTwist_.angular.x = joyPtr->axes[3] * rotatVel_;
         eefTwist_.angular.y = joyPtr->axes[4] * rotatVel_;
         eefTwist_.angular.z = joyPtr->axes[5] * rotatVel_;
+        std::cout << "=== linear: " << eefTwist_.linear.x << " " << eefTwist_.linear.y << " " << eefTwist_.linear.z << std::endl;
+        std::cout << "=== angular: " << eefTwist_.angular.x << " " << eefTwist_.angular.y << " " << eefTwist_.angular.z << std::endl;
 
         // 如果是相对基座坐标系运动，则需要将速度映射成末端。因为在setFromDiffIK中，eefTwist_是末端相对末端的速度
         if (twistRelative2Base)
         {
             transformTwist(eefTwist_);
         }
+        std::cout << "=== linear: " << eefTwist_.linear.x << " " << eefTwist_.linear.y << " " << eefTwist_.linear.z << std::endl;
+        std::cout << "=== angular: " << eefTwist_.angular.x << " " << eefTwist_.angular.y << " " << eefTwist_.angular.z << std::endl;
 
         if (!robotState_->setFromDiffIK(jointModelGroup_, eefTwist_, eefFrame_, duration))
         {
@@ -357,6 +363,7 @@ private:
         jointStatesMsgs_.effort.resize(armJointNumber_);
         jointStatesMsgs_.name = jointNames_;
         robotState_->copyJointGroupPositions(jointModelGroup_, jointStatesMsgs_.position);
+        robotState_->copyJointGroupVelocities(jointModelGroup_, jointStatesMsgs_.velocity);
         return true;
     }
 

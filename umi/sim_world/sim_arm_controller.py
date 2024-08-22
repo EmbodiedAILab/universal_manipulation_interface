@@ -6,8 +6,8 @@ from multiprocessing.managers import SharedMemoryManager
 import scipy.interpolate as si
 import scipy.spatial.transform as st
 import numpy as np
-from rtde_control import RTDEControlInterface
-from rtde_receive import RTDEReceiveInterface
+from umi.sim_world.ros_control_interface import ROSControlInterface
+from umi.sim_world.ros_receive_interface import ROSReceiveInterface
 from umi.shared_memory.shared_memory_queue import (
     SharedMemoryQueue, Empty)
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
@@ -81,7 +81,7 @@ class SimArmController(mp.Process):
             joints_init = np.array(joints_init)
             assert joints_init.shape == (6,)
 
-        super().__init__(name="RTDEPositionalController")
+        super().__init__(name="SimArmController")
         self.robot_ip = robot_ip
         self.frequency = frequency
         self.lookahead_time = lookahead_time
@@ -98,7 +98,6 @@ class SimArmController(mp.Process):
         self.receive_latency = receive_latency
         self.verbose = verbose
         self.reset_value = False
-        # self.rtde_c = RTDEControlInterface(hostname=robot_ip)
 
         if get_max_k is None:
             get_max_k = int(frequency * 5)
@@ -129,10 +128,10 @@ class SimArmController(mp.Process):
                 'TargetQ',
                 'TargetQd'
             ]
-        rtde_r = RTDEReceiveInterface(hostname=robot_ip)
+        ros_r = ROSReceiveInterface()
         example = dict()
         for key in receive_keys:
-            example[key] = np.array(getattr(rtde_r, 'get'+key)())
+            example[key] = np.array(getattr(ros_r, 'get'+key)())
         example['robot_receive_timestamp'] = time.time()
         example['robot_timestamp'] = time.time()
         ring_buffer = SharedMemoryRingBuffer.create_from_examples(
@@ -154,7 +153,7 @@ class SimArmController(mp.Process):
         if wait:
             self.start_wait()
         if self.verbose:
-            print(f"[RTDEPositionalController] Controller process spawned at {self.pid}")
+            print(f"[SimArmController] Controller process spawned at {self.pid}")
 
     def stop(self, wait=True):
         message = {
@@ -184,12 +183,8 @@ class SimArmController(mp.Process):
         self.stop()
         
     def servoJ(self):  
-        # self.rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
-        # self.servoL(self.joints_init, 5)
         print('call servoJ')
         self.reset_value=True
-        # RESET_VALUE=True
-        # print('reset stting, ', RESET_VALUE)
      
     # ========= command methods ============
     def servoL(self, pose, duration=0.1):
@@ -239,29 +234,21 @@ class SimArmController(mp.Process):
         # start rtde
         robot_ip = self.robot_ip
         print('robot_ip', robot_ip)
-        rtde_c = RTDEControlInterface(hostname=robot_ip)
-        rtde_r = RTDEReceiveInterface(hostname=robot_ip)
+        ros_c = ROSControlInterface()
+        ros_r = ROSReceiveInterface()
 
         try:
             if self.verbose:
-                print(f"[RTDEPositionalController] Connect to robot: {robot_ip}")
+                print(f"[SimArmController] Connect to robot: {robot_ip}")
 
-            # set parameters
-            if self.tcp_offset_pose is not None:
-                rtde_c.setTcp(self.tcp_offset_pose)
-            if self.payload_mass is not None:
-                if self.payload_cog is not None:
-                    assert rtde_c.setPayload(self.payload_mass, self.payload_cog)
-                else:
-                    assert rtde_c.setPayload(self.payload_mass)
-            
             # init pose
             if self.joints_init is not None:
-                assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
+                # assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
+                assert ros_c.moveJ(self.joints_init)
 
             # main loop
             dt = 1. / self.frequency
-            curr_pose = rtde_r.getActualTCPPose()
+            curr_pose = ros_r.getActualTCPPose()
             # use monotonic time to make sure the control loop never go backward
             curr_t = time.monotonic()
             last_waypoint_time = curr_t
@@ -274,36 +261,24 @@ class SimArmController(mp.Process):
             iter_idx = 0
             keep_running = True
             while keep_running:
-                # print('keep_running', iter_idx)
-                # print ("reset value: ",self.reset)
                 if self.reset_value:
                     print('reset move lll')
                     RESET_VALUE=False
-                    assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
+                    assert ros_c.moveJ(self.joints_init)
                     print('reset move')
                     continue
-                    
-                # start control iteration
-                # t_start = rtde_c.initPeriod()
 
                 # send command to robot
                 t_now = time.monotonic()
-                # diff = t_now - pose_interp.times[-1]
-                # if diff > 0:
-                #     print('extrapolate', diff)
                 pose_command = pose_interp(t_now)
                 vel = 0.5
                 acc = 0.5
-                assert rtde_c.servoL(pose_command, 
-                    vel, acc, # dummy, not used by ur5
-                    dt, 
-                    self.lookahead_time, 
-                    self.gain)
+                assert ros_c.servoL(pose_command)
                 
                 # update robot state
                 state = dict()
                 for key in self.receive_keys:
-                    state[key] = np.array(getattr(rtde_r, 'get'+key)())
+                    state[key] = np.array(getattr(ros_r, 'get'+key)())
                 t_recv = time.time()
                 state['robot_receive_timestamp'] = t_recv
                 state['robot_timestamp'] = t_recv - self.receive_latency
@@ -311,9 +286,6 @@ class SimArmController(mp.Process):
 
                 # fetch command from queue
                 try:
-                    # commands = self.input_queue.get_all()
-                    # n_cmd = len(commands['cmd'])
-                    # process at most 1 command per cycle to maintain frequency
                     commands = self.input_queue.get_k(1)
                     n_cmd = len(commands['cmd'])
                 except Empty:
@@ -348,7 +320,7 @@ class SimArmController(mp.Process):
                         )
                         last_waypoint_time = t_insert
                         if self.verbose:
-                            print("[RTDEPositionalController] New pose target:{} duration:{}s".format(
+                            print("[SimArmController] New pose target:{} duration:{}s".format(
                                 target_pose, duration))
                     elif cmd == Command.SCHEDULE_WAYPOINT.value:
                         target_pose = command['target_pose']
@@ -380,18 +352,10 @@ class SimArmController(mp.Process):
                 iter_idx += 1
 
                 if self.verbose:
-                    print(f"[RTDEPositionalController] Actual frequency {1/(time.monotonic() - t_now)}")
+                    print(f"[SimArmController] Actual frequency {1/(time.monotonic() - t_now)}")
 
         finally:
-            # manditory cleanup
-            # decelerate
-            rtde_c.servoStop()
-
-            # terminate
-            rtde_c.stopScript()
-            rtde_c.disconnect()
-            rtde_r.disconnect()
             self.ready_event.set()
 
             if self.verbose:
-                print(f"[RTDEPositionalController] Disconnected from robot: {robot_ip}")
+                print(f"[SimArmController] Disconnected from robot: {robot_ip}")

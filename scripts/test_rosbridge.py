@@ -1,5 +1,6 @@
 import websocket
 import json
+import time
 
 def on_message(ws, message):
     data = json.loads(message)
@@ -18,6 +19,19 @@ def on_open(ws):
         "topic": "/chatter",
     }
     ws.send(json.dumps(subscribe_msg))
+    
+    # 向一个ROS话题发布消息，例如 /chatter
+    publish_msg = {
+        "op": "publish",
+        "topic": "/chatter",
+        "msg": {
+            "data": "Hello, ROS!"
+        }
+    }
+    
+    # 延迟一会儿再发送消息，以确保连接已经稳定
+    time.sleep(1)
+    ws.send(json.dumps(publish_msg))
 
 if __name__ == "__main__":
     websocket.enableTrace(True)

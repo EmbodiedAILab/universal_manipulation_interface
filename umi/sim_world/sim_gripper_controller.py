@@ -6,8 +6,9 @@ from multiprocessing.managers import SharedMemoryManager
 from umi.shared_memory.shared_memory_queue import SharedMemoryQueue, Empty
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.common.precise_sleep import precise_wait
-from umi.real_world.dh_modbus_gripper import dh_modbus_gripper
 from umi.common.pose_trajectory_interpolator import PoseTrajectoryInterpolator
+from umi.sim_world.ros_control_interface import ROSControlInterface
+from umi.sim_world.ros_receive_interface import ROSReceiveInterface
 
 
 class Command(enum.Enum):
@@ -58,13 +59,8 @@ class SimGripperController(mp.Process):
             shm_manager=shm_manager, examples=example, buffer_size=command_queue_size
         )
 
-        # build ring buffer
         example = {
-            "gripper_state": 0,
             "gripper_position": 0.0,
-            "gripper_velocity": 0.0,
-            "gripper_force": 0.0,
-            "gripper_measure_timestamp": time.time(),
             "gripper_receive_timestamp": time.time(),
             "gripper_timestamp": time.time(),
         }
@@ -86,7 +82,7 @@ class SimGripperController(mp.Process):
         if wait:
             self.start_wait()
         if self.verbose:
-            print(f"[DHController] Controller process spawned at {self.pid}")
+            print(f"[SimGripperController] Controller process spawned at {self.pid}")
 
     def stop(self, wait=True):
         message = {"cmd": Command.SHUTDOWN.value}
@@ -140,25 +136,11 @@ class SimGripperController(mp.Process):
     # ========= main loop in process ============
     def run(self):
         # start connection
-        try:
-            with dh_modbus_gripper(
-                self.port,
-                self.band_rate,
-                self.max_width,
-                self.max_speed,
-                self.max_force,
-            ) as dh:
-
-                # home gripper to initialize
-                dh.Initialization()
-                print("Send grip init")
-                initstate = 0
-                while initstate != 1:
-                    initstate = dh.GetInitState()
-                    time.sleep(0.2)
-
+        try:             
+                ros_c = ROSControlInterface()    
+                ros_r = ROSReceiveInterface()
                 # get initial
-                curr_pos = dh.GetCurrentAbsPosition()
+                curr_pos = ros_r.getGripperCurrentPos()
                 curr_t = time.monotonic()
                 last_waypoint_time = curr_t
                 pose_interp = PoseTrajectoryInterpolator(
@@ -178,37 +160,22 @@ class SimGripperController(mp.Process):
                     t_target = t_now
                     target_pos = pose_interp(t_target)[0]
                     target_vel = (target_pos - pose_interp(t_target - dt)[0]) / dt
-                    # print('controller', target_pos, target_vel)
-                    # info = wsg.script_position_pd(
-                    #     position=target_pos, velocity=target_vel)
-                    # time.sleep(1e-3)
-                    dh.SetTargetAbsForce(10.0)
                     origin_target_pos = target_pos
-                    # dh.SetTargetAbsSpeed(target_vel)
+                    
                     tmp=target_pos
                     if target_pos<0.068:
                         tmp=target_pos-0.01
-                    # if target_pos>0.06:
-                    #     tmp=target_pos+0.01
                     target_pos=tmp
-                        # picked = True
-                    dh.SetTargetAbsPosition(target_pos)
+                    
+                    #TODO
+                    # dh.SetTargetAbsPosition(target_pos)
+                    ros_c.setGripperTargetPos(target_pos)         
                     print("origin_target_pos, target_vel, target_pos", origin_target_pos, target_vel, target_pos)
-                    # dh.SetTargetSpeed(
-                    #     int(100 * target_vel / self.max_speed)
-                    # )  # 参数是最大速度的百分比
-                    # dh.SetTargetPosition(
-                    #     int(1000 * target_pos / self.max_width)
-                    # )  # 需要检查target_pos和max_width的单位是否相同
-                    info = dh.GetRunStates()
+                    # info = dh.GetRunStates()
 
                     # get state from robot
                     state = {
-                        "gripper_state": info["state"],
-                        "gripper_position": info["position"] / self.scale,
-                        "gripper_velocity": info["velocity"] / self.scale,
-                        "gripper_force": info["force_motor"],
-                        "gripper_measure_timestamp": info["measure_timestamp"],
+                        "gripper_position": ros_r.getGripperCurrentPos() / self.scale,
                         "gripper_receive_timestamp": time.time(),
                         "gripper_timestamp": time.time() - self.receive_latency,
                     }
@@ -269,4 +236,4 @@ class SimGripperController(mp.Process):
         finally:
             self.ready_event.set()
             if self.verbose:
-                print(f"[SimGripperController] Disconnected from robot: {self.hostname}")
+                print(f"[SimGripperController] Disconnected from robot")
