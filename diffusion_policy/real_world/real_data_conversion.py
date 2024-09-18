@@ -78,6 +78,24 @@ def real_data_to_replay_buffer(
         chunks=chunks_map,
         compressors=compressor_map
         )
+   
+    for key,value in in_replay_buffer.data.items():
+        if 'eef_pos' in key:
+            robot = key.split('_')[0]
+            rot = in_replay_buffer[robot+'_eef_rot_axis_angle']
+            start_pose = out_replay_buffer.data.require_dataset(
+                robot + '_demo_start_pose',
+                shape=(rot.shape[0], 6),
+                dtype=np.float32)
+            pose = np.hstack((value[0],rot[0]))
+            start_pose[:] = np.tile(pose, (rot.shape[0], 1))
+
+            end_pose = out_replay_buffer.data.require_dataset(
+                robot + '_demo_end_pose',
+                shape=(rot.shape[0], 6),
+                dtype=np.float32)
+            pose = np.hstack((value[-1],rot[-1]))
+            end_pose[:] =  np.tile(pose, (rot.shape[0], 1))
     
     # worker function
     def put_img(zarr_arr, zarr_idx, img):

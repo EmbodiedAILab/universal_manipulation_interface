@@ -81,35 +81,30 @@ def main(output, robot_ip, gripper_ip, vis_camera_idx, init_joints, gripper_spee
     robots_config = [
         {
             'robot_type': 'ur5e',
-            'robot_ip': '172.24.95.8',
+            'robot_ip': '192.168.2.152',
             'robot_obs_latency': 0.0001, 'robot_action_latency': 0.1, 'tcp_offset': 0.235,
-            'height_threshold': 0.027,
+            'height_threshold': 0.017,
             'sphere_radius': 0.13, 'sphere_center': [0, 0, -0.185],
             # 'height_threshold': -0.075
-
         },
-        {
-            'robot_type': 'ur5',
-            'robot_ip': '172.24.95.9',
-            'robot_obs_latency': 0.0001, 'robot_action_latency': 0.1, 'tcp_offset': 0.235,
-            'height_threshold': 0.022,
-            'sphere_radius': 0.13, 'sphere_center': [0, 0, -0.185],
-        }
+        # {
+        #     'robot_type': 'ur5',
+        #     'robot_ip': '172.24.95.9',
+        #     'robot_obs_latency': 0.0001, 'robot_action_latency': 0.1, 'tcp_offset': 0.235,
+        #     'height_threshold': 0.022,
+        #     'sphere_radius': 0.13, 'sphere_center': [0, 0, -0.185],
+        # }
     ]
     grippers_config = [
         {
-            'gripper_ip': '172.24.95.18',
-            'gripper_port': 1000, 'gripper_obs_latency': 0.01, 'gripper_action_latency': 0.1
-        },
-        {
-            'gripper_ip': '172.24.95.27',
-            'gripper_port': 1000, 'gripper_obs_latency': 0.01, 'gripper_action_latency': 0.1
+            "robot_type": "dh",
+            "gripper_port": "/dev/ttyUSBDH_", "gripper_obs_latency": 0.01, "gripper_action_latency": 0.1
         }
     ]
 
-    max_gripper_width = 0.09
+    max_gripper_width = 0.08
 
-    frequency = 10
+    frequency = 30
     command_latency = 1/100
     dt = 1/frequency
     with SharedMemoryManager() as shm_manager:
@@ -120,7 +115,7 @@ def main(output, robot_ip, gripper_ip, vis_camera_idx, init_joints, gripper_spee
                 robots_config=robots_config,
                 grippers_config=grippers_config,
                 camera_reorder=[1, 2, 3, 0],
-                obs_image_resolution=(256,256),
+                obs_image_resolution=(1280,720),
                 frequency=frequency,
                 init_joints=init_joints,
                 enable_multi_cam_vis=True,
@@ -131,7 +126,7 @@ def main(output, robot_ip, gripper_ip, vis_camera_idx, init_joints, gripper_spee
             ) as env:
             cv2.setNumThreads(1)
 
-            time.sleep(1.0)
+            time.sleep(3.0)
             print('Ready!')
             states = env.get_robot_state()
             target_pose = np.stack([s['TargetTCPPose'] for s in states])
@@ -168,6 +163,14 @@ def main(output, robot_ip, gripper_ip, vis_camera_idx, init_joints, gripper_spee
                         key_counter.clear()
                         is_recording = False
                         print('Stopped.')
+                    elif key_stroke == KeyCode(char='e'):
+                            # Next episode
+                        if match_episode is not None:
+                            match_episode = min(match_episode + 1, env.replay_buffer.n_episodes-1)
+                    elif key_stroke == KeyCode(char='w'):
+                            # Prev episode
+                        if match_episode is not None:
+                            match_episode = max(match_episode - 1, 0)
                     elif key_stroke == Key.backspace:
                         if click.confirm('Are you sure to drop an episode?'):
                             env.drop_episode()
@@ -184,7 +187,7 @@ def main(output, robot_ip, gripper_ip, vis_camera_idx, init_joints, gripper_spee
                 stage = key_counter[Key.space]
 
                 # visualize
-                vis_img = obs[f'camera{vis_camera_idx}_rgb'][-1,:,:,::-1].copy()
+                vis_img = obs[f'camera_{vis_camera_idx}'][-1,:,:,::-1].copy()
                 episode_id = env.replay_buffer.n_episodes
                 text = f'Episode: {episode_id}, Stage: {stage}'
                 if is_recording:

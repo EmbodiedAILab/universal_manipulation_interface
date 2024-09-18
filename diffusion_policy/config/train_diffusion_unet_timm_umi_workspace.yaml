@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - task: umi
+  - task: umi_teleop_image
 
 name: train_diffusion_unet_timm
 _target_: diffusion_policy.workspace.train_diffusion_unet_image_workspace.TrainDiffusionUnetImageWorkspace
@@ -115,14 +115,14 @@ ema:
   max_value: 0.9999
 
 dataloader:
-  batch_size: 32
+  batch_size: 64
   num_workers: 8
   shuffle: True
   pin_memory: True
   persistent_workers: True
 
 val_dataloader:
-  batch_size: 32
+  batch_size: 64
   num_workers: 8
   shuffle: False
   pin_memory: True

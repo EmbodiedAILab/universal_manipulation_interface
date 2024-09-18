@@ -8,11 +8,12 @@ from multiprocessing.managers import SharedMemoryManager
 
 from diffusion_policy.real_world.multi_realsense import MultiRealsense
 from diffusion_policy.real_world.single_realsense import SingleRealsense
+from diffusion_policy.real_world.video_recorder import VideoRecorder
 from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
 from umi.real_world.wsg_controller import WSGController
 from umi.real_world.dh_controller import DHController
 # from umi.real_world.franka_interpolation_controller import FrankaInterpolationController
-from umi.real_world.multi_uvc_camera import MultiUvcCamera, VideoRecorder
+from umi.real_world.multi_uvc_camera import MultiUvcCamera
 from diffusion_policy.common.timestamp_accumulator import (
     TimestampActionAccumulator,
     ObsAccumulator
@@ -39,7 +40,7 @@ class BimanualUmiRsEnv:
             # env params
             frequency=20,
             # obs
-            obs_image_resolution=(224,224),
+            obs_image_resolution=(640,480),
             max_obs_buffer_size=60,
             obs_float32=False,
             camera_reorder=None,
@@ -63,7 +64,7 @@ class BimanualUmiRsEnv:
             init_joints=False,
             # vis params
             enable_multi_cam_vis=True,
-            multi_cam_vis_resolution=(960, 960),
+            multi_cam_vis_resolution=(1280, 720),
             # shared memory
             shm_manager=None
             ):
@@ -135,7 +136,6 @@ class BimanualUmiRsEnv:
             shm_manager=shm_manager,
             resolution=video_capture_resolution,
             capture_fps=capture_fps,
-            put_fps=capture_fps,
             # send every frame immediately after arrival
             # ignores put_fps
             put_downsample=False,
@@ -384,7 +384,7 @@ class BimanualUmiRsEnv:
                 #     print('ERROR!!!  ', camera_idx, len(this_timestamps), nn_idx, (this_timestamps - t)[nn_idx-1: nn_idx+2])
                 this_idxs.append(nn_idx)
             # remap key
-            camera_obs[f'camera{camera_idx}_rgb'] = value['color'][this_idxs]
+            camera_obs[f'camera_{camera_idx}'] = value['color'][this_idxs]
 
         # obs_data to return (it only includes camera data at this stage)
         obs_data = dict(camera_obs)

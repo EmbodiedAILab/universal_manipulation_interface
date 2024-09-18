@@ -139,7 +139,7 @@ def main(input, output, robot_config,
     steps_per_inference, max_duration,
     frequency, command_latency, 
     no_mirror, sim_fov, camera_intrinsics, mirror_swap):
-    max_gripper_width = 0.09
+    max_gripper_width = 0.08
     gripper_speed = 0.2
     
     # load robot config file
@@ -186,23 +186,23 @@ def main(input, output, robot_config,
                 robots_config=robots_config,
                 grippers_config=grippers_config,
                 frequency=frequency,
-                obs_image_resolution=obs_res,
+                obs_image_resolution=(1280,720),
                 obs_float32=True,
                 camera_reorder=[int(x) for x in camera_reorder],
                 init_joints=init_joints,
                 enable_multi_cam_vis=True,
                 # latency
-                camera_obs_latency=0.03,
+                camera_obs_latency=0.125,
                 # obs
-                camera_obs_horizon=cfg.task.shape_meta.obs.camera0_rgb.horizon,
+                camera_obs_horizon=cfg.task.shape_meta.obs.camera_0.horizon,
                 robot_obs_horizon=cfg.task.shape_meta.obs.robot0_eef_pos.horizon,
                 gripper_obs_horizon=cfg.task.shape_meta.obs.robot0_gripper_width.horizon,
                 no_mirror=no_mirror,
                 fisheye_converter=fisheye_converter,
                 mirror_swap=mirror_swap,
                 # action
-                max_pos_speed=2.0,
-                max_rot_speed=6.0,
+                # max_pos_speed=0.25,
+                # max_rot_speed=0.6,
                 shm_manager=shm_manager) as env:
             cv2.setNumThreads(2)
             print("Waiting for camera")
@@ -301,23 +301,23 @@ def main(input, output, robot_config,
 
                     # visualize
                     episode_id = env.replay_buffer.n_episodes
-                    vis_img = obs[f'camera{match_camera}_rgb'][-1]
-                    match_episode_id = episode_id
-                    if match_episode is not None:
-                        match_episode_id = match_episode
-                    if match_episode_id in episode_first_frame_map:
-                        match_img = episode_first_frame_map[match_episode_id]
-                        ih, iw, _ = match_img.shape
-                        oh, ow, _ = vis_img.shape
-                        tf = get_image_transform2(
-                            input_res=(iw, ih), 
-                            output_res=(ow, oh), 
-                            bgr_to_rgb=False)
-                        match_img = tf(match_img).astype(np.float32) / 255
-                        vis_img = (vis_img + match_img) / 2
-                    obs_left_img = obs['camera0_rgb'][-1]
-                    obs_right_img = obs['camera0_rgb'][-1]
-                    vis_img = np.concatenate([obs_left_img, obs_right_img, vis_img], axis=1)
+                    vis_img = obs[f'camera_{match_camera}'][-1]
+                    # match_episode_id = episode_id
+                    # if match_episode is not None:
+                    #     match_episode_id = match_episode
+                    # if match_episode_id in episode_first_frame_map:
+                    #     match_img = episode_first_frame_map[match_episode_id]
+                    #     ih, iw, _ = match_img.shape
+                    #     oh, ow, _ = vis_img.shape
+                    #     tf = get_image_transform2(
+                    #         input_res=(iw, ih), 
+                    #         output_res=(ow, oh), 
+                    #         bgr_to_rgb=False)
+                    #     match_img = tf(match_img).astype(np.float32) / 255
+                    #     vis_img = (vis_img + match_img) / 2
+                    # obs_left_img = obs['camera1_rgb'][-1]
+                    # obs_right_img = obs['camera0_rgb'][-1]
+                    # vis_img = np.concatenate([obs_left_img, obs_right_img, vis_img], axis=1)
                     
                     text = f'Episode: {episode_id}'
                     cv2.putText(
@@ -413,17 +413,17 @@ def main(input, output, robot_config,
                         gripper_target_pos[robot_idx] = np.clip(gripper_target_pos[robot_idx] + dpos, 0, max_gripper_width)
 
                     # solve collision with table
-                    for robot_idx in control_robot_idx_list:
-                        solve_table_collision(
-                            ee_pose=target_pose[robot_idx],
-                            gripper_width=gripper_target_pos[robot_idx],
-                            height_threshold=robots_config[robot_idx]['height_threshold'])
+                    # for robot_idx in control_robot_idx_list:
+                    #     solve_table_collision(
+                    #         ee_pose=target_pose[robot_idx],
+                    #         gripper_width=gripper_target_pos[robot_idx],
+                    #         height_threshold=robots_config[robot_idx]['height_threshold'])
                     
                     # solve collison between two robots
-                    solve_sphere_collision(
-                        ee_poses=target_pose,
-                        robots_config=robots_config
-                    )
+                    # solve_sphere_collision(
+                    #     ee_poses=target_pose,
+                    #     robots_config=robots_config
+                    # )
 
                     action = np.zeros((7 * target_pose.shape[0],))
 
@@ -495,19 +495,19 @@ def main(input, output, robot_config,
                         # convert policy action to env actions
                         this_target_poses = action
                         assert this_target_poses.shape[1] == len(robots_config) * 7
-                        for target_pose in this_target_poses:
-                            for robot_idx in range(len(robots_config)):
-                                solve_table_collision(
-                                    ee_pose=target_pose[robot_idx * 7: robot_idx * 7 + 6],
-                                    gripper_width=target_pose[robot_idx * 7 + 6],
-                                    height_threshold=robots_config[robot_idx]['height_threshold']
-                                )
+                        # for target_pose in this_target_poses:
+                        #     for robot_idx in range(len(robots_config)):
+                        #         solve_table_collision(
+                        #             ee_pose=target_pose[robot_idx * 7: robot_idx * 7 + 6],
+                        #             gripper_width=target_pose[robot_idx * 7 + 6],
+                        #             height_threshold=robots_config[robot_idx]['height_threshold']
+                        #         )
                             
-                            # solve collison between two robots
-                            solve_sphere_collision(
-                                ee_poses=target_pose.reshape([len(robots_config), -1]),
-                                robots_config=robots_config
-                            )
+                        #     # solve collison between two robots
+                        #     solve_sphere_collision(
+                        #         ee_poses=target_pose.reshape([len(robots_config), -1]),
+                        #         robots_config=robots_config
+                        #     )
 
                         # deal with timing
                         # the same step actions are always the target for
@@ -537,25 +537,22 @@ def main(input, output, robot_config,
                         print(f"Submitted {len(this_target_poses)} steps of actions.")
 
                         # visualize
+                        vis_img = obs[f'camera_{vis_camera_idx}'][-1,:,:,::-1].copy()
                         episode_id = env.replay_buffer.n_episodes
-                        obs_left_img = obs['camera0_rgb'][-2]
-                        obs_right_img = obs['camera0_rgb'][-1]
-                        vis_img = np.concatenate([obs_left_img, obs_right_img], axis=1)
-                        text = 'Episode: {}, Time: {:.1f}'.format(
-                            episode_id, time.monotonic() - t_start
-                        )
+                        text = f'Episode: {episode_id}, Recording!'
                         cv2.putText(
                             vis_img,
                             text,
-                            (10,20),
+                            (10,30),
                             fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                            fontScale=0.5,
-                            thickness=1,
+                            fontScale=1,
+                            thickness=2,
                             color=(255,255,255)
                         )
-                        cv2.imshow('default', vis_img[...,::-1])
 
-                        _ = cv2.pollKey()
+                        cv2.imshow('default', vis_img)
+                        cv2.pollKey()
+
                         press_events = key_counter.get_press_events()
                         stop_episode = False
                         for key_stroke in press_events:

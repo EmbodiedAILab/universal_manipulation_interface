@@ -186,10 +186,10 @@ class DHController(mp.Process):
                     origin_target_pos = target_pos
                     # dh.SetTargetAbsSpeed(target_vel)
                     # tmp=target_pos
-                    # if target_pos<0.068:
-                    #     tmp=target_pos-0.01
-                    # if target_pos>0.06:
-                    #     tmp=target_pos+0.01
+                    # if 0.05<target_pos<0.07:
+                    #     tmp=target_pos-0.02
+                    # elif target_pos>0.07:
+                    #     tmp=target_pos+0.02
                     # target_pos=tmp
                         # picked = True
                     dh.SetTargetAbsPosition(target_pos)
