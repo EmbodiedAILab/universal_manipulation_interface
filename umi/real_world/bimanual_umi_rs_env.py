@@ -231,7 +231,7 @@ class BimanualUmiRsEnv:
 
         assert len(robots_config) == len(grippers_config)
         robots: List[RTDEInterpolationController] = list()
-        grippers: List[WSGController] = list()
+        grippers: List[DHController] = list()
         for rc in robots_config:
             if rc['robot_type'].startswith('ur5'):
                 assert rc['robot_type'] in ['ur5', 'ur5e']

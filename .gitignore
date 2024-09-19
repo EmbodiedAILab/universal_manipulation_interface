@@ -178,3 +178,6 @@ cython_debug/
 realsense_aruco_ws/src/umi_control/output_link_traj/*
 
 data_folder/
+
+realsense_aruco_ws/src/joint_state_publisher
+realsense_aruco_ws/src/joint_state_publisher/*

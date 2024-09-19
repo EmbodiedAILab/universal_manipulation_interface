@@ -22,13 +22,13 @@
       <visual>
         <origin xyz="0 0 -0" rpy="0 0 0 " />
         <geometry>
-          <mesh filename="package://umi_description/meshes/hand.dae"/>
+          <mesh filename="package://umi_description/meshes/gripper_gopro.dae"/>
         </geometry>
       </visual>
       <collision>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <geometry>
-          <mesh filename="package://umi_description/meshes/hand.STL" />
+          <mesh filename="package://umi_description/meshes/gripper_gopro.STL" />
         </geometry>
       </collision>
     </link>
