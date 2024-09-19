@@ -65,17 +65,17 @@ print(RESET_VALUE)
 OmegaConf.register_new_resolver("eval", eval, replace=True)
 
 # originl code
-# def solve_table_collision(ee_pose, gripper_width, height_threshold):
-#     finger_thickness = 25.5 / 1000
-#     keypoints = list()
-#     for dx in [-1, 1]:
-#         for dy in [-1, 1]:
-#             keypoints.append((dx * gripper_width / 2, dy * finger_thickness / 2, 0))
-#     keypoints = np.asarray(keypoints)
-#     rot_mat = st.Rotation.from_rotvec(ee_pose[3:6]).as_matrix()
-#     transformed_keypoints = np.transpose(rot_mat @ np.transpose(keypoints)) + ee_pose[:3]
-#     delta = max(height_threshold - np.min(transformed_keypoints[:, 2]), 0)
-#     ee_pose[2] += delta
+def solve_table_collision(ee_pose, gripper_width, height_threshold):
+    finger_thickness = 25.5 / 1000
+    keypoints = list()
+    for dx in [-1, 1]:
+        for dy in [-1, 1]:
+            keypoints.append((dx * gripper_width / 2, dy * finger_thickness / 2, 0))
+    keypoints = np.asarray(keypoints)
+    rot_mat = st.Rotation.from_rotvec(ee_pose[3:6]).as_matrix()
+    transformed_keypoints = np.transpose(rot_mat @ np.transpose(keypoints)) + ee_pose[:3]
+    delta = max(height_threshold - np.min(transformed_keypoints[:, 2]), 0)
+    ee_pose[2] += 0
 
 # def solve_table_collision(ee_pose, gripper_width, height_threshold):
 #     finger_thickness = 25.5 / 1000
@@ -94,28 +94,28 @@ OmegaConf.register_new_resolver("eval", eval, replace=True)
 #         delta = -0.03
 #     ee_pose[2] += delta
 
-def solve_table_collision(ee_pose, gripper_width, height_threshold):
-    finger_thickness = 25.5 / 1000
-    keypoints = list()
-    for dx in [-1, 1]:
-        for dy in [-1, 1]:
-            keypoints.append((dx * gripper_width / 2, dy * finger_thickness / 2, 0))
-    keypoints = np.asarray(keypoints)
-    rot_mat = st.Rotation.from_rotvec(ee_pose[3:6]).as_matrix()
-    transformed_keypoints = np.transpose(rot_mat @ np.transpose(keypoints)) + ee_pose[:3]
-    min_height = np.min(transformed_keypoints[:, 2])
-    delta = 0
-    print('ee_pose:',ee_pose)
-    collision_detect_thres = 0.05   # 距离桌面多高，开始启用碰撞检测，z方向的距离，单位为米
-    delta_z_offset = 0.035           # 夹爪向下的距离，单位为米
-    if min_height < height_threshold:
-        delta = height_threshold - min_height
-        print('min_height < height_threshold')
-    if min_height > height_threshold and min_height < height_threshold + collision_detect_thres:
-        delta = -delta_z_offset
-        print('min_height > height_threshold')
-    # delta = max(height_threshold - np.min(transformed_keypoints[:, 2]), 0)
-    ee_pose[2] += delta
+# def solve_table_collision(ee_pose, gripper_width, height_threshold):
+#     finger_thickness = 25.5 / 1000
+#     keypoints = list()
+#     for dx in [-1, 1]:
+#         for dy in [-1, 1]:
+#             keypoints.append((dx * gripper_width / 2, dy * finger_thickness / 2, 0))
+#     keypoints = np.asarray(keypoints)
+#     rot_mat = st.Rotation.from_rotvec(ee_pose[3:6]).as_matrix()
+#     transformed_keypoints = np.transpose(rot_mat @ np.transpose(keypoints)) + ee_pose[:3]
+#     min_height = np.min(transformed_keypoints[:, 2])
+#     delta = 0
+#     print('ee_pose:',ee_pose)
+#     collision_detect_thres = 0.05   # 距离桌面多高，开始启用碰撞检测，z方向的距离，单位为米
+#     delta_z_offset = 0.035           # 夹爪向下的距离，单位为米
+#     if min_height < height_threshold:
+#         delta = height_threshold - min_height
+#         print('min_height < height_threshold')
+#     if min_height > height_threshold and min_height < height_threshold + collision_detect_thres:
+#         delta = -delta_z_offset
+#         print('min_height > height_threshold')
+#     # delta = max(height_threshold - np.min(transformed_keypoints[:, 2]), 0)
+#     ee_pose[2] += delta
 
 #     # 模式2
 #     tcp_offset_manual = 0.017        # 夹爪往前的距离，不是单纯的向下，单位为米
