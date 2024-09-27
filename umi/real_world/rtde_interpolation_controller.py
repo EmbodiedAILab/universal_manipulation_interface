@@ -14,6 +14,8 @@ from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.common.pose_trajectory_interpolator import PoseTrajectoryInterpolator
 from diffusion_policy.common.precise_sleep import precise_wait
 
+# global RESET_VALUE
+
 class Command(enum.Enum):
     STOP = 0
     SERVOL = 1
@@ -95,6 +97,8 @@ class RTDEInterpolationController(mp.Process):
         self.soft_real_time = soft_real_time
         self.receive_latency = receive_latency
         self.verbose = verbose
+        self.reset_value = False
+        # self.rtde_c = RTDEControlInterface(hostname=robot_ip)
 
         if get_max_k is None:
             get_max_k = int(frequency * 5)
@@ -179,6 +183,14 @@ class RTDEInterpolationController(mp.Process):
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.stop()
         
+    def servoJ(self):  
+        # self.rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
+        # self.servoL(self.joints_init, 5)
+        print('call servoJ')
+        self.reset_value=True
+        # RESET_VALUE=True
+        # print('reset stting, ', RESET_VALUE)
+     
     # ========= command methods ============
     def servoL(self, pose, duration=0.1):
         """
@@ -226,6 +238,7 @@ class RTDEInterpolationController(mp.Process):
 
         # start rtde
         robot_ip = self.robot_ip
+        print('robot_ip', robot_ip)
         rtde_c = RTDEControlInterface(hostname=robot_ip)
         rtde_r = RTDEReceiveInterface(hostname=robot_ip)
 
@@ -261,6 +274,15 @@ class RTDEInterpolationController(mp.Process):
             iter_idx = 0
             keep_running = True
             while keep_running:
+                # print('keep_running', iter_idx)
+                # print ("reset value: ",self.reset)
+                if self.reset_value:
+                    print('reset move lll')
+                    RESET_VALUE=False
+                    assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
+                    print('reset move')
+                    continue
+                    
                 # start control iteration
                 # t_start = rtde_c.initPeriod()
 

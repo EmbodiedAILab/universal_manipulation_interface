@@ -19,6 +19,7 @@ __pycache__/
 # Distribution / packaging
 .Python
 build/
+devel/
 develop-eggs/
 dist/
 downloads/
@@ -171,3 +172,12 @@ cython_debug/
 #  and can be added to the global gitignore or merged into this file.  For a more nuclear
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
+
+*.ckpt
+
+realsense_aruco_ws/src/umi_control/output_link_traj/*
+
+data_folder/
+
+realsense_aruco_ws/src/joint_state_publisher
+realsense_aruco_ws/src/joint_state_publisher/*
