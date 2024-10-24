@@ -28,17 +28,10 @@ class DatasetVisualizer:
         # 创建绘图窗口
         self.fig = plt.figure(figsize=(18, 10))
         self.ax1 = self.fig.add_subplot(131, projection='3d')
-        self.ax1.set_title('pose')
-        self.ax2 = self.fig.add_subplot(132)
-        self.ax2.set_title('camera_0')
-        self.ax2.axis('off')
-        self.ax3 = self.fig.add_subplot(133)
-        self.ax3.set_title('camera_1')
-        self.ax3.axis('off')
 
         # 初始化空的轨迹线
         # self.line, = self.ax.plot([], [], [], label='3D trajectory', lw=0.1)
-        self.points, = self.ax1.plot([], [], [], 'ro',linestyle='None', markersize=10, label='Points')
+        self.points, = self.ax1.plot([], [], [], 'ro', linestyle='None', markersize=10, label='Points')
 
         # 设置轴标签和范围
         self.ax1.set_xlabel('X axis')
@@ -49,6 +42,13 @@ class DatasetVisualizer:
         #创建播放时间显示文本
         self.time_text = self.fig.text(0.05, 0.95, '',ha='center', fontsize=12, color='blue')
         self.pose_text = self.ax1.text2D(0.05, 0.95, '', transform=self.ax1.transAxes)
+
+        self.ax2 = self.fig.add_subplot(132)
+        self.ax2.set_title('camera_0')
+        self.ax2.axis('off')
+        self.ax3 = self.fig.add_subplot(133)
+        self.ax3.set_title('camera_1')
+        self.ax3.axis('off')
 
         # 创建滑块
         self.ax_slider = plt.axes([0.1, 0.02, 0.65, 0.03], facecolor='lightgoldenrodyellow')
@@ -85,7 +85,7 @@ class DatasetVisualizer:
 
         current_time = self.timestamps[num-1]/30
         self.time_text.set_text(f'Time: {current_time:.2f} s\nEpisode: {self.episode_id}\n')
-        self.pose_text.set_text(f'Pos: [{self.x[num-1]},{self.y[num-1]},{self.z[num-1]}\nRot: {self.rot}\n')
+        self.pose_text.set_text(f'Pos: [{self.x[num-1]:.2f},{self.y[num-1]:.2f},{self.z[num-1]:.2f}\nRot: {self.rot[num-1]}\n')
         self.fig.canvas.draw_idle()
 
     def play(self, event):
@@ -102,6 +102,7 @@ class DatasetVisualizer:
             self.n_episode -= 1
             self.ax_slider.clear()
             self.load()
+            self.update(0)
             self.fig.canvas.draw_idle()
 
     def next(self, event):
@@ -109,11 +110,12 @@ class DatasetVisualizer:
             self.n_episode += 1
             self.ax_slider.clear()
             self.load()
+            self.update(0)
             self.fig.canvas.draw_idle()
 
     def load(self):
         # self.n_episode = episode_id
-        ep = self.replay_buffer.get_episode(self.n_episode)
+        ep = self.replay_buffer.get_episode(self.episode_id)
         pos = ep['robot0_eef_pos']
         self.rot = ep['robot0_eef_rot_axis_angle']
 
@@ -146,7 +148,7 @@ class DatasetVisualizer:
 
     def show(self, episode_id):
         self.episode_id = episode_id
-        self.load(episode_id)
+        self.load()
         plt.show()
 
 @click.command()
