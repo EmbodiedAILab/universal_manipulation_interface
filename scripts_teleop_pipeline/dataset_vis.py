@@ -31,7 +31,9 @@ class DatasetVisualizer:
 
         # 初始化空的轨迹线
         # self.line, = self.ax.plot([], [], [], label='3D trajectory', lw=0.1)
-        self.points, = self.ax1.plot([], [], [], 'ro', linestyle='None', markersize=10, label='Points')
+        self.pos, = self.ax1.plot([], [], [], 'ro', linestyle='None', markersize=10, label='Points')
+        self.action, = self.ax1.plot([], [], [], 'go', linestyle='None', markersize=10, label='Points')
+
 
         # 设置轴标签和范围
         self.ax1.set_xlabel('X axis')
@@ -78,14 +80,14 @@ class DatasetVisualizer:
         num = int(self.slider.val)
         # self.line.set_data(self.x[num], self.y[num])
         # self.line.set_3d_properties(self.z[num])
-        self.points.set_data(self.x[num-1], self.y[num-1])
-        self.points.set_3d_properties(self.z[num-1])
+        self.pos.set_data(self.x[num - 1], self.y[num - 1])
+        self.pos.set_3d_properties(self.z[num - 1])
         self.camera0_dis.set_data(self.camera0[num - 1])
         self.camera1_dis.set_data(self.camera1[num - 1])
 
         current_time = self.timestamps[num-1]/30
         self.time_text.set_text(f'Time: {current_time:.2f} s\nEpisode: {self.episode_id}\n')
-        self.pose_text.set_text(f'Pos: [{self.x[num-1]:.2f},{self.y[num-1]:.2f},{self.z[num-1]:.2f}\nRot: {self.rot[num-1]}\n')
+        self.pose_text.set_text(f'Pos: [{self.x[num-1]:.2f},{self.y[num-1]:.2f},{self.z[num-1]:.2f}\nRot: {self.rot[num-1]}\nwidth: {self.width[num-1]}')
         self.fig.canvas.draw_idle()
 
     def play(self, event):
@@ -124,6 +126,7 @@ class DatasetVisualizer:
         self.z = pos[:,2]
         # self.timestamps = replay_buffer['timestamp']
         self.timestamps = np.arange(0,len(self.x), 1)
+        self.width = ep['robot0_gripper_width']
         self.camera0 = ep['camera_0']
         self.camera1 = ep['camera_1']
 
