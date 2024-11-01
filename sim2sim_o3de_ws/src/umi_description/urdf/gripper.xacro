@@ -1,0 +1,89 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="gripper">
+
+    <link name="hand_link">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="1.0" />
+        <inertia ixx="0.001" iyy="0.001" izz="0.001" ixy="0.0" iyz="-0.0" ixz="-0.0" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0 " />
+        <geometry>
+          <mesh filename="package://umi_description/meshes/gripper_realsense/hand.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://umi_description/meshes/gripper_realsense/hand.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="dh_leftfinger">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.1" />
+        <inertia ixx="0.0001" iyy="0.0001" izz="0.0001" ixy="0.0" iyz="-0.0" ixz="-0.0" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0 " />
+        <geometry>
+          <mesh filename="package://umi_description/meshes/left_finger.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://umi_description/meshes/left_finger.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <link name="dh_rightfinger">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.1" />
+        <inertia ixx="0.0001" iyy="0.0001" izz="0.0001" ixy="0.0" iyz="-0.0" ixz="-0.0" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0 " />
+        <geometry>
+          <mesh filename="package://umi_description/meshes/right_finger.dae"/>
+        </geometry>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry>
+          <mesh filename="package://umi_description/meshes/right_finger.STL" />
+        </geometry>
+      </collision>
+    </link>
+
+    <joint name="dh_finger_joint1" type="prismatic">
+        <parent link="hand_link" />
+        <child link="dh_leftfinger" />
+        <origin xyz="0 -0.01105 0.10" rpy="0 0 0" />
+        <axis xyz="-1 0 0"/>
+        <limit effort="100" lower="0.0" upper="0.04" velocity="0.2"/>
+        <dynamics damping="0.3"/>
+    </joint>
+
+    <joint name="dh_finger_joint2" type="prismatic">
+        <parent link="hand_link" />
+        <child link="dh_rightfinger" />
+        <origin xyz="0 -0.01105 0.10" rpy="0 0 0" />
+        <limit effort="100.0" lower="0" upper="0.04" velocity="0.2"/>
+        <!-- <mimic joint="dh_finger_joint1" /> -->
+        <dynamics damping="0.3"/>
+    </joint>
+
+    <link name="tool_link" />
+    <joint name="tool_link_2_umi_link" type="fixed">
+        <parent link="hand_link" />
+        <child link="tool_link" />
+        <origin rpy="0 0 0" xyz="0 -0.01105 0.235" />
+    </joint>
+
+</robot>
