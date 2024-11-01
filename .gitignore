@@ -20,6 +20,8 @@ __pycache__/
 .Python
 build/
 devel/
+install/
+log/
 develop-eggs/
 dist/
 downloads/
