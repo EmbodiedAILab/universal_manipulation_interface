@@ -1,0 +1,25 @@
+moveit_setup_assistant_config:
+  urdf:
+    package: umi_description
+    relative_path: urdf/umi.xacro
+  srdf:
+    relative_path: config/umi.srdf
+  package_settings:
+    author_name: heng zhang
+    author_email: zhanghengsjtu@gmail.com
+    generated_timestamp: 1730444127
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
+  modified_urdf:
+    xacros:
+      - control_xacro
+  control_xacro:
+    command:
+      - position
+    state:
+      - position
+      - velocity
