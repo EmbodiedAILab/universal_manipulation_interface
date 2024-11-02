@@ -7,6 +7,7 @@
 #include <trajectory_msgs/msg/joint_trajectory.hpp>
 #include <trajectory_msgs/msg/joint_trajectory_point.hpp>
 #include <sensor_msgs/msg/joint_state.hpp>
+#include <std_msgs/msg/float64_multi_array.hpp>
 
 class ActionController : public rclcpp::Node
 {
@@ -27,7 +28,7 @@ public:
             "joint_states", 10, std::bind(&ActionController::JointStateCallback, this, std::placeholders::_1));
         
         // 订阅控制接口
-        jointCommandSub_ = this->create_subscription<sensor_msgs::msg::JointState>(
+        jointCommandSub_ = this->create_subscription<std_msgs::msg::Float64MultiArray>(
             "joint_servo_controller", 10, std::bind(&ActionController::JointCommandCallback, this, std::placeholders::_1));
 
         preTime_ = this->get_clock()->now();
@@ -57,28 +58,28 @@ private:
         }
     }
 
-    void JointCommandCallback(const sensor_msgs::msg::JointState::SharedPtr msg)
+    void JointCommandCallback(const std_msgs::msg::Float64MultiArray::SharedPtr msg)
     {
         if (jointStateFlag_ == false)
         {
             RCLCPP_ERROR(this->get_logger(), "Didn't receive joint states!");
             return;
         }
-        if (msg->position.size() != currentJointStateMsg_.name.size())
+        if (msg->data.size() != currentJointStateMsg_.name.size())
         {
             RCLCPP_ERROR(this->get_logger(), "Joint size is wrong!");
             return;  
         }
         double duration = (this->get_clock()->now() - preTime_).seconds();
-        if (duration > COMMAND_MAX_INTERVAL)
+        if (duration > MAX_TIMEOUT_)
         {
-          duration = COMMAND_MAX_INTERVAL;
+          duration = MAX_TIMEOUT_;
         }
         // 创建目标轨迹消息
         auto goal_msg = control_msgs::action::FollowJointTrajectory::Goal();
-        goal_msg.trajectory = constructTrajectory(msg->position, duration);
+        goal_msg.trajectory = constructTrajectory(msg->data, duration);
         actionClient_->async_send_goal(goal_msg);
-        RCLCPP_INFO(this->get_logger(), "Executing!");
+        // RCLCPP_INFO(this->get_logger(), "Executing!");
 
         preTime_ = this->get_clock()->now();
     }
@@ -101,11 +102,11 @@ private:
 
     rclcpp_action::Client<control_msgs::action::FollowJointTrajectory>::SharedPtr actionClient_;
     rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr jointStateSub_;
-    rclcpp::Subscription<sensor_msgs::msg::JointState>::SharedPtr jointCommandSub_;
+    rclcpp::Subscription<std_msgs::msg::Float64MultiArray>::SharedPtr jointCommandSub_;
     rclcpp::Time preTime_;
     bool jointStateFlag_ = false;
     sensor_msgs::msg::JointState currentJointStateMsg_;
-    const double COMMAND_MAX_INTERVAL = 0.2;
+    const double MAX_TIMEOUT_ = 0.2;
 };
 
 int main(int argc, char * argv[])

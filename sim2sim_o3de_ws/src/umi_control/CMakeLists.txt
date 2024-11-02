@@ -32,7 +32,7 @@ ament_target_dependencies(
   arm_eef_controller
   "moveit_ros_planning_interface"
   "rclcpp"
-  rclcpp_action control_msgs sensor_msgs trajectory_msgs
+  rclcpp_action control_msgs trajectory_msgs
 )
 
 add_executable(arm_moveit_controller src/arm_moveit_controller.cpp)

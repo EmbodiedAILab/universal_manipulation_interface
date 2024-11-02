@@ -61,7 +61,8 @@ int main(int argc, char * argv[])
       executor.spin();
   }).detach();
 
-  CartersianController controller(node);
+  auto controller = std::make_shared<CartersianController>(node);
+  executor.add_node(controller);
 
   rclcpp::shutdown();
   return 0;

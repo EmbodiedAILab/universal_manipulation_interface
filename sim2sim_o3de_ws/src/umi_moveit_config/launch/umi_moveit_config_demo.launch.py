@@ -31,7 +31,7 @@ def launch_setup(context, *args, **kwargs):
 
     moveit_config = (
         MoveItConfigsBuilder("umi")
-        .robot_description(file_path="config/panda.urdf.xacro")
+        .robot_description(file_path="config/umi.urdf.xacro")
         .planning_scene_monitor(
             publish_robot_description=True, publish_robot_description_semantic=True
         )
