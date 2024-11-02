@@ -11,20 +11,49 @@ find_package(moveit_ros_planning_interface REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(control_msgs REQUIRED)
 
-add_executable(arm_controller src/arm_controller.cpp)
-target_include_directories(arm_controller PUBLIC
+add_executable(arm_joint_controller src/arm_joint_controller.cpp)
+target_include_directories(arm_joint_controller PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-target_compile_features(arm_controller PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+target_compile_features(arm_joint_controller PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 ament_target_dependencies(
-  arm_controller
+  arm_joint_controller
   "moveit_ros_planning_interface"
   "rclcpp"
   rclcpp_action control_msgs sensor_msgs trajectory_msgs
 )
 
-install(TARGETS arm_controller
+add_executable(arm_eef_controller src/arm_eef_controller.cpp)
+target_include_directories(arm_eef_controller PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(arm_eef_controller PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(
+  arm_eef_controller
+  "moveit_ros_planning_interface"
+  "rclcpp"
+  rclcpp_action control_msgs sensor_msgs trajectory_msgs
+)
+
+add_executable(arm_moveit_controller src/arm_moveit_controller.cpp)
+target_include_directories(arm_moveit_controller PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(arm_moveit_controller PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(
+  arm_moveit_controller
+  "moveit_ros_planning_interface"
+  "rclcpp"
+)
+
+
+install(TARGETS arm_joint_controller arm_eef_controller arm_moveit_controller
   DESTINATION lib/${PROJECT_NAME})
+
+install(
+  DIRECTORY launch
+  DESTINATION share/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

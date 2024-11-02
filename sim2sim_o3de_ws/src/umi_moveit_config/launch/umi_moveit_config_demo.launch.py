@@ -27,20 +27,19 @@ def launch_setup(context, *args, **kwargs):
     current_directory = str(current_file_path.parent)
 
     use_sim_time = { "use_sim_time": True}
-    moveit_config = MoveItConfigsBuilder("umi", package_name="umi_moveit_config").to_moveit_configs()
+    # moveit_config = MoveItConfigsBuilder("umi", package_name="umi_moveit_config").to_moveit_configs()
 
-    # moveit_config = (
-    #     MoveItConfigsBuilder("umi")
-    #     .robot_description(file_path="config/panda.urdf.xacro")
-    #     # .trajectory_execution(file_path="config/gripper_moveit_controllers.yaml")
-    #     .planning_scene_monitor(
-    #         publish_robot_description=True, publish_robot_description_semantic=True
-    #     )
-    #     .planning_pipelines(
-    #         pipelines=["ompl", "chomp", "pilz_industrial_motion_planner"]
-    #     )
-    #     .to_moveit_configs()
-    # )
+    moveit_config = (
+        MoveItConfigsBuilder("umi")
+        .robot_description(file_path="config/panda.urdf.xacro")
+        .planning_scene_monitor(
+            publish_robot_description=True, publish_robot_description_semantic=True
+        )
+        .planning_pipelines(
+            pipelines=["ompl", "chomp", "pilz_industrial_motion_planner"]
+        )
+        .to_moveit_configs()
+    )
 
     # Start the actual move_group node/action server
     run_move_group_node = Node(

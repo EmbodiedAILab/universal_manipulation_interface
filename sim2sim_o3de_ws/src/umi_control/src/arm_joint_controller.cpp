@@ -64,6 +64,11 @@ private:
             RCLCPP_ERROR(this->get_logger(), "Didn't receive joint states!");
             return;
         }
+        if (msg->position.size() != currentJointStateMsg_.name.size())
+        {
+            RCLCPP_ERROR(this->get_logger(), "Joint size is wrong!");
+            return;  
+        }
         double duration = (this->get_clock()->now() - preTime_).seconds();
         if (duration > COMMAND_MAX_INTERVAL)
         {
