@@ -19,7 +19,7 @@ int main(int argc, char * argv[])
         executor.spin();
     }).detach();
 
-    auto const logger = rclcpp::get_logger("hello_moveit");
+    auto const logger = rclcpp::get_logger("arm_eef_controller_test");
 
     // Create the MoveIt MoveGroup Interface
     using moveit::planning_interface::MoveGroupInterface;

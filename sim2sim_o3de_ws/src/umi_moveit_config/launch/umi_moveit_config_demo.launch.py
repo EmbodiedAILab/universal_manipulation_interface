@@ -27,7 +27,6 @@ def launch_setup(context, *args, **kwargs):
     current_directory = str(current_file_path.parent)
 
     use_sim_time = { "use_sim_time": True}
-    # moveit_config = MoveItConfigsBuilder("umi", package_name="umi_moveit_config").to_moveit_configs()
 
     moveit_config = (
         MoveItConfigsBuilder("umi")
