@@ -67,6 +67,7 @@ def launch_setup(context, *args, **kwargs):
             moveit_config.robot_description_kinematics,
             moveit_config.planning_pipelines,
             moveit_config.joint_limits,
+            use_sim_time
         ],
     )
     
@@ -76,7 +77,7 @@ def launch_setup(context, *args, **kwargs):
         executable="robot_state_publisher",
         name="robot_state_publisher",
         output="both",
-        parameters=[moveit_config.robot_description, {'use_sim_time': True}],
+        parameters=[moveit_config.robot_description, use_sim_time],
     )
    
     nodes_to_start = [
