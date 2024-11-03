@@ -73,7 +73,7 @@ ros2 launch umi_control arm_eef_servo_controller_test.launch.py
 #### 机械臂控制
 
 `arm_eef_controller_test`主要是让末端沿着y方向以正弦曲线的方式运动，运动过程如下
-<video controls src="doc/y方向移动.mp4" title="Title"></video>
+![alt text](doc/y方向的轨迹.png)
 
 此外，由于O3DE是一个带物理引擎的仿真器，末端控制会有一定的误差，因此在只让y运动的情况下，z和x也会有微小的扰动，比如z的变化如下，最大误差在`3mm`左右，可以满足一般的应用。
 ![alt text](doc/z方向的误差.png)
