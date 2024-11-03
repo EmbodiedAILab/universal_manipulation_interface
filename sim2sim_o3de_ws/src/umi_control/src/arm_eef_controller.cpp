@@ -8,6 +8,8 @@
 #include <moveit/robot_state/robot_state.h>
 #include <geometry_msgs/msg/pose.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
+#include <Eigen/Geometry>
+#include <umi_control/tf2_helper.hpp>
 
 using namespace std;
 
@@ -36,13 +38,15 @@ public:
   }
 
 private:
-  const std::string GROUP_NAME_ = "arm";
+  const std::string GROUP_NAME_ = "arm";  // 机械臂的规划组
+  const std::string BASE_FRAME_ = "base"; // 传过来的位姿一定是相对该坐标系的
   robot_model_loader::RobotModelLoader robotModelLoader_;
   const moveit::core::RobotModelPtr &robotModel_;
   moveit::core::RobotStatePtr robotState_;
   const moveit::core::JointModelGroup *jointModelGroup_;
   moveit::planning_interface::MoveGroupInterface moveGroupInterface_;
 
+  Eigen::Isometry3d base2WorldMatrix_;
   string eefFrame_;
   string baseFrame_;
   bool initialized_ = false;
@@ -57,6 +61,8 @@ private:
     if (initialized_ == false)
     {
       robotState_ = moveGroupInterface_.getCurrentState();
+      base2WorldMatrix_ = robotState_->getFrameTransform(BASE_FRAME_);
+      tf2_helper::PrintIsometry(base2WorldMatrix_);
       initialized_ = true;
       RCLCPP_INFO(this->get_logger(), "Initialize robot state");
     }
@@ -72,7 +78,9 @@ private:
     // 但是在ROS1中，会出现跳变的问题。因此在ROS1中推荐使用setFromDiffIK
     // 此外，在ROS2中也测试过setFromDiffIK，但是因为O3DE中的机器人关节运动会存在扰动，因此控制不稳定。
     // 因此，如果未来有使用setFromDiffIK，还需要详细的调试
-    robotState_->setFromIK(jointModelGroup_, *msg);
+    const auto toolLink2World = base2WorldMatrix_ * tf2_helper::PoseToMatrix(*msg);
+    robotState_->setFromIK(jointModelGroup_, tf2_helper::MatrixToPose(toolLink2World));
+    // robotState_->setFromIK(jointModelGroup_, *msg);
 
     std_msgs::msg::Float64MultiArray jointCommandMsg;
     robotState_->copyJointGroupPositions(jointModelGroup_, jointCommandMsg.data);
