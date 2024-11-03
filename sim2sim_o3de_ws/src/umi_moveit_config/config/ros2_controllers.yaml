@@ -24,10 +24,9 @@ arm_controller:
       - wrist_2_joint
       - wrist_3_joint
     command_interfaces:
-      - position
+      []
     state_interfaces:
-      - position
-      - velocity
+      []
 hand_controller:
   ros__parameters:
     joint: dh_finger_joint1

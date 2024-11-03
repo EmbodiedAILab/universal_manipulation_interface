@@ -32,7 +32,7 @@ public:
             "joint_servo_controller", 10, std::bind(&ActionController::JointCommandCallback, this, std::placeholders::_1));
 
         preTime_ = this->get_clock()->now();
-        RCLCPP_INFO(this->get_logger(), "Ready to take new joint command!");
+        RCLCPP_WARN(this->get_logger(), "Ready to take new joint command!");
     }
 
 private:
@@ -79,7 +79,6 @@ private:
         auto goal_msg = control_msgs::action::FollowJointTrajectory::Goal();
         goal_msg.trajectory = constructTrajectory(msg->data, duration);
         actionClient_->async_send_goal(goal_msg);
-        // RCLCPP_INFO(this->get_logger(), "Executing!");
 
         preTime_ = this->get_clock()->now();
     }

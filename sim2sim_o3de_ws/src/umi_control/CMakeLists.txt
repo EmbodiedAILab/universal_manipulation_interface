@@ -32,7 +32,18 @@ ament_target_dependencies(
   arm_eef_controller
   "moveit_ros_planning_interface"
   "rclcpp"
-  rclcpp_action control_msgs trajectory_msgs
+  control_msgs
+)
+
+add_executable(arm_eef_controller_test src/arm_eef_controller_test.cpp)
+target_include_directories(arm_eef_controller_test PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(arm_eef_controller_test PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(
+  arm_eef_controller_test
+  "moveit_ros_planning_interface"
+  "rclcpp"
 )
 
 add_executable(arm_moveit_controller src/arm_moveit_controller.cpp)
@@ -46,8 +57,7 @@ ament_target_dependencies(
   "rclcpp"
 )
 
-
-install(TARGETS arm_joint_controller arm_eef_controller arm_moveit_controller
+install(TARGETS arm_joint_controller arm_eef_controller arm_moveit_controller arm_eef_controller_test
   DESTINATION lib/${PROJECT_NAME})
 
 install(

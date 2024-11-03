@@ -8,7 +8,6 @@
 #include <moveit/robot_state/robot_state.h>
 #include <geometry_msgs/msg/pose.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
-#include <geometry_msgs/msg/twist.hpp>
 
 using namespace std;
 
@@ -26,13 +25,14 @@ public:
     robotState_->setToDefaultValues();
     baseFrame_ = moveGroupInterface_.getPoseReferenceFrame();
     eefFrame_ = moveGroupInterface_.getEndEffectorLink();
-    RCLCPP_ERROR(this->get_logger(), "base frame %s", baseFrame_.c_str());
-    RCLCPP_ERROR(this->get_logger(), "eef frame %s", eefFrame_.c_str());
+    RCLCPP_INFO(this->get_logger(), "base frame %s", baseFrame_.c_str());
+    RCLCPP_INFO(this->get_logger(), "eef frame %s", eefFrame_.c_str());
 
     jointCommandPub_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("joint_servo_controller", 10);
     eefCommandSub_ = this->create_subscription<geometry_msgs::msg::Pose>(
         "eef_servo_controller", 10, std::bind(&CartersianController::EEFCommandCallback, this, std::placeholders::_1));
     preTime_ = this->get_clock()->now();
+    RCLCPP_WARN(this->get_logger(), "Ready to take new end effector command!");
   }
 
 private:
@@ -68,102 +68,17 @@ private:
       duration = MAX_TIMEOUT_;
     }
 
-    auto currentPose = moveGroupInterface_.getCurrentPose().pose;
-    geometry_msgs::msg::Twist twist = GetTwist(currentPose, *msg, duration);
-    TransformTwist(twist);
-    if (!robotState_->setFromDiffIK(jointModelGroup_, twist, eefFrame_, duration))
-    {
-      RCLCPP_ERROR(this->get_logger(), "Failed to get IK");
-    }
+    // 测试下来发现，在moveit2中，直接计算IK也比较稳定，不会出现IK跳变的问题
+    // 但是在ROS1中，会出现跳变的问题。因此在ROS1中推荐使用setFromDiffIK
+    // 此外，在ROS2中也测试过setFromDiffIK，但是因为O3DE中的机器人关节运动会存在扰动，因此控制不稳定。
+    // 因此，如果未来有使用setFromDiffIK，还需要详细的调试
+    robotState_->setFromIK(jointModelGroup_, *msg);
 
     std_msgs::msg::Float64MultiArray jointCommandMsg;
     robotState_->copyJointGroupPositions(jointModelGroup_, jointCommandMsg.data);
     jointCommandPub_->publish(jointCommandMsg);
 
     preTime_ = this->get_clock()->now();
-  }
-
-  void TransformTwist(geometry_msgs::msg::Twist& twist)
-  {
-    std::vector<double> currentJointValues = moveGroupInterface_.getCurrentJointValues();
-
-    robotState_->setJointGroupPositions(jointModelGroup_, currentJointValues);
-    Eigen::Matrix3d eef2BaseRotationMatrix = robotState_->getFrameTransform(eefFrame_).rotation();
-    Eigen::Vector3d linear, angular;
-    linear.x() = twist.linear.x;
-    linear.y() = twist.linear.y;
-    linear.z() = twist.linear.z;
-    angular.x() = twist.angular.x;
-    angular.y() = twist.angular.y;
-    angular.z() = twist.angular.z;
-    linear = eef2BaseRotationMatrix.transpose() * linear;
-    angular = eef2BaseRotationMatrix.transpose() * angular;
-    twist.linear.x = linear.x();
-    twist.linear.y = linear.y();
-    twist.linear.z = linear.z();
-    twist.angular.x = angular.x();
-    twist.angular.y = angular.y();
-    twist.angular.z = angular.z();   
-  }
-
-  geometry_msgs::msg::Twist GetTwist(const geometry_msgs::msg::Pose &startPose, const geometry_msgs::msg::Pose &targetPose, const double duration)
-  {
-    geometry_msgs::msg::Twist twist;
-
-    // 计算位置差
-    double dx = targetPose.position.x - startPose.position.x;
-    double dy = targetPose.position.y - startPose.position.y;
-    double dz = targetPose.position.z - startPose.position.z;
-
-    // 计算线速度（x, y, z 方向）
-    twist.linear.x = dx / duration; // x 方向线速度
-    twist.linear.y = dy / duration; // y 方向线速度
-    twist.linear.z = dz / duration; // z 方向线速度
-
-    // 从四元数计算起始和目标的朝向（roll, pitch, yaw）
-    double startRoll, startPitch, startYaw;
-    tf2::Quaternion startQuat(
-        startPose.orientation.x,
-        startPose.orientation.y,
-        startPose.orientation.z,
-        startPose.orientation.w);
-    tf2::Matrix3x3(startQuat).getRPY(startRoll, startPitch, startYaw);
-
-    double targetRoll, targetPitch, targetYaw;
-    tf2::Quaternion targetQuat(
-        targetPose.orientation.x,
-        targetPose.orientation.y,
-        targetPose.orientation.z,
-        targetPose.orientation.w);
-    tf2::Matrix3x3(targetQuat).getRPY(targetRoll, targetPitch, targetYaw);
-
-    // 计算角速度（roll, pitch, yaw）
-    double rollDiff = targetRoll - startRoll;
-    double pitchDiff = targetPitch - startPitch;
-    double yawDiff = targetYaw - startYaw;
-
-    // 确保角度在 -π 到 π 之间
-    while (yawDiff > M_PI)
-      yawDiff -= 2 * M_PI;
-    while (yawDiff < -M_PI)
-      yawDiff += 2 * M_PI;
-
-    while (pitchDiff > M_PI)
-      pitchDiff -= 2 * M_PI;
-    while (pitchDiff < -M_PI)
-      pitchDiff += 2 * M_PI;
-
-    while (rollDiff > M_PI)
-      rollDiff -= 2 * M_PI;
-    while (rollDiff < -M_PI)
-      rollDiff += 2 * M_PI;
-
-    // 计算角速度
-    twist.angular.x = rollDiff / duration;  // roll 角速度
-    twist.angular.y = pitchDiff / duration; // pitch 角速度
-    twist.angular.z = yawDiff / duration;   // yaw 角速度
-
-    return twist;
   }
 };
 
