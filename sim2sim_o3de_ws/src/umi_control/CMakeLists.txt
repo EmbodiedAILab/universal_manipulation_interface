@@ -46,18 +46,18 @@ ament_target_dependencies(
   "rclcpp"
 )
 
-add_executable(arm_moveit_controller src/arm_moveit_controller.cpp)
-target_include_directories(arm_moveit_controller PUBLIC
+add_executable(eef_pose_gripper_width_pub src/eef_pose_gripper_width_pub.cpp)
+target_include_directories(eef_pose_gripper_width_pub PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>)
-target_compile_features(arm_moveit_controller PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+target_compile_features(eef_pose_gripper_width_pub PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
 ament_target_dependencies(
-  arm_moveit_controller
+  eef_pose_gripper_width_pub
   "moveit_ros_planning_interface"
   "rclcpp"
 )
 
-install(TARGETS arm_joint_controller arm_eef_controller arm_moveit_controller arm_eef_controller_test
+install(TARGETS arm_joint_controller arm_eef_controller arm_eef_controller_test eef_pose_gripper_width_pub
   DESTINATION lib/${PROJECT_NAME})
 
 install(
