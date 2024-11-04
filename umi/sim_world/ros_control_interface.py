@@ -1,89 +1,138 @@
-import rospy
-from geometry_msgs.msg import PoseStamped
-from sensor_msgs.msg import JointState
-import tf.transformations as tft
+import zmq
+import time
+# import pickle
+import msgpack
+from scipy.spatial.transform import Rotation as R
 
-class ROSControlInterface:
-    def __init__(self):
-        # 初始化 ROS 节点
-        rospy.init_node('ros_control_interface', anonymous=True)
-        
-        # 创建发布器，发布到 /arm_servo_cmd 主题
-        self.servoL_pub = rospy.Publisher('/servoL_cmd', PoseStamped, queue_size=10)
-        self.moveJ_pub = rospy.Publisher('/moveJ_cmd', JointState, queue_size=10)
-        self.gripper_state_pub = rospy.Publisher('/gripper_cmd', JointState, queue_size=10)
-        
+HOST = "192.168.1.106"
+
+class ControlInterface:
+    def __init__(self, zmq_host=HOST, zmq_port=5554):
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.PUB)
+        self.socket.setsockopt(zmq.LINGER, 0)
+        self.socket.setsockopt(zmq.SNDHWM, 1000)  # 限制发送队列最多只保存10000条消息
+        #self.socket.setsockopt(zmqCONFLATE., 1)
+        self.socket.bind(f"tcp://{zmq_host}:{zmq_port}")
+        self.send_count = 0
+
+    def send_message(self, topic, data):
+        """通过 ZeroMQ 发布序列化的消息"""     
+        try: 
+            serialized_data = msgpack.packb(data, use_bin_type=True)
+            self.socket.send_multipart([topic.encode(), serialized_data])
+            # send_time = time.time()
+            # with open("pose_data.txt", 'a') as f:
+            #     print(f"pose data: {data}, send time: {send_time}", file=f)
+            return True
+        except zmq.ZMQError as e:
+            print(f"send failed with error: {e}")
+            return False
 
     def servoL(self, pose):
         """
-        将 [x, y, z, rx, ry, rz] 的位姿作为输入参数，并发布到 /arm_servo_cmd 主题上
-        :param pose: 位姿数据 [x, y, z, rx, ry, rz]
+        接受位姿数据 [x, y, z, rx, ry, rz]（旋转部分为轴角表示）并通过 ZeroMQ 发布到 'servoL_cmd' 主题。
+        :param pose: 位姿数据 [x, y, z, rx, ry, rz]，其中 [rx, ry, rz] 是旋转轴角表示。
         """
         if len(pose) != 6:
-            rospy.logerr("Pose must have 6 elements: [x, y, z, rx, ry, rz]")
+            print("Pose must have 6 elements: [x, y, z, rx, ry, rz]")
             return
+
+        rotation_vector = [pose[3], pose[4], pose[5]]
+
+        r = R.from_rotvec(rotation_vector)  # 从旋转向量生成旋转对象
+        quaternion = r.as_quat()  # 获取四元数 [x, y, z, w]
+
+        pose_data = {
+            'position': {'x': pose[0], 'y': pose[1], 'z': pose[2]},
+            'orientation': {'x': quaternion[0], 'y': quaternion[1], 'z': quaternion[2], 'w': quaternion[3]},
+            'timestamp': int(time.time() * 1e6),
+            # 'no': int(self.send_count)
+        }
         
-        # 创建 PoseStamped 消息
-        pose_stamped = PoseStamped()
-        pose_stamped.header.stamp = rospy.Time.now()
-        pose_stamped.header.frame_id = "tool_link"
+        # pose_data = {
+        #     'position': {'x': 0.5185243679605477, 'y': -0.30249453979892443, 'z': 1.0930670011521983}, 'orientation': {'x': -0.733264110588851, 'y': -0.05949216897767744, 'z': -0.6770688704888099, 'w': 0.01903077948167801}, 'timestamp': int(time.time() * 1e6), 'no': int(self.send_count)
+        # }
+        # output_file = "pose_data.txt"
 
-        # 填充位置
-        pose_stamped.pose.position.x = pose[0]
-        pose_stamped.pose.position.y = pose[1]
-        pose_stamped.pose.position.z = pose[2]
+        # 打开输出文件
+        # with open(output_file, 'a') as f:
+        #     # 将print的数据写入到文件中
+        #     print(f"==={pose}", file=f)
+        #     print(pose_data, file=f)
+        self.send_count += 1
 
-        # 填充旋转四元数
-        euler = [pose[3], pose[4], pose[5]]
-        quaternion = tft.quaternion_from_euler(*euler)
-        pose_stamped.pose.orientation.x = quaternion[0]
-        pose_stamped.pose.orientation.y = quaternion[1]
-        pose_stamped.pose.orientation.z = quaternion[2]
-        pose_stamped.pose.orientation.w = quaternion[3]
+        return self.send_message('servoL_cmd', pose_data)
 
-        # 发布消息
-        self.servoL_pub.publish(pose_stamped)
-        rospy.loginfo("Published Pose: %s", pose_stamped)
-    
     def moveJ(self, joint_positions):
         if not isinstance(joint_positions, list) or not all(isinstance(pos, (int, float)) for pos in joint_positions):
-            rospy.logerr("Joint positions must be a list of numbers")
+            print("Joint positions must be a list of numbers")
             return
 
-        joint_state_msg = JointState()
-        joint_state_msg.header.stamp = rospy.Time.now()
-        joint_state_msg.header.frame_id = "base_link"  # Modify frame_id if needed
-        joint_state_msg.name = [f'joint_{i}' for i in range(len(joint_positions))]  # Modify joint names if needed
-        joint_state_msg.position = joint_positions
-        joint_state_msg.velocity = []  # Empty list for velocity, as not provided
-        joint_state_msg.effort = []    # Empty list for effort, as not provided
+        joint_data = {
+            'positions': joint_positions,
+            'timestamp': int(time.time() * 1e6)
+        }
 
-        self.moveJ_pub.publish(joint_state_msg)
-        rospy.loginfo("Published JointState: %s", joint_positions)
-        
+        return self.send_message('moveJ_cmd', joint_data)
+    
+    def cleanup(self):
+            self.socket.close()
+            self.context.term()
+
+
+class GripperControlInterface:
+    def __init__(self, zmq_host=HOST, zmq_port=5556):
+        self.context = zmq.Context(io_threads=2)
+        self.socket = self.context.socket(zmq.PUB)
+        self.socket.setsockopt(zmq.LINGER, 0)
+        self.socket.setsockopt(zmq.SNDHWM, 1000)  # 限制发送队列最多只保存1条消息
+        # self.socket.setsockopt(zmq.SNDBUF, 4194304)
+        self.socket.bind(f"tcp://{zmq_host}:{zmq_port}")
+
+    def send_message(self, topic, data):
+        """通过 ZeroMQ 发布序列化的消息"""     
+        try: 
+            serialized_data = msgpack.packb(data, use_bin_type=True)
+            self.socket.send_multipart([topic.encode(), serialized_data])
+            # print(f"sent gripper_cmd: {data}")
+            return True
+        except zmq.ZMQError as e:
+            print(f"send failed with error: {e}")
+            return False
+
     def setGripperTargetPos(self, target_pos):
-        joint_positions = [-target_pos/2, -target_pos/2]
-        joint_state_msg = JointState()
-        joint_state_msg.header.stamp = rospy.Time.now()
-        joint_state_msg.header.frame_id = "tool_link"  # Modify frame_id if needed
-        joint_state_msg.name = ["gripper"]
-        joint_state_msg.position = joint_positions
-        joint_state_msg.velocity = []  # Empty list for velocity, as not provided
-        joint_state_msg.effort = []    # Empty list for effort, as not provided
-        
-        self.gripper_state_pub.publish(joint_state_msg)
-        rospy.loginfo("Published Gripper JointState: %s", joint_positions)
+        gripper_data = {
+            'positions': target_pos,
+            'timestamp': int(time.time() * 1e6)
+        }
+
+        return self.send_message('gripper_cmd', gripper_data)
+    
+    def cleanup(self):
+            print('cleanup')
+            self.socket.setsockopt(zmq.LINGER, 0)
+            self.socket.close()
+            self.context.term()
+
 
 if __name__ == "__main__":
-    # 创建 ROSControlInterface 对象
-    control_interface = ROSControlInterface()
-    
-    # 示例 pose 数据 [x, y, z, rx, ry, rz]
+    zmq_control = ControlInterface()
+    gripper_control = GripperControlInterface()
+
     example_pose = [1.0, 0.0, 0.5, 0.0, 0.0, 0.0]
-    example_joint = [0, 0, 0, 0, 0, 0]
-    example_gripper_pos = 0.08
-    
-    while not rospy.is_shutdown():
-        control_interface.servoL(example_pose)
-        # control_interface.moveJ(example_joint)
-        # control_interface.setGripperTargetPos(example_gripper_pos)
+    example_joint_positions = [0.5, 1.2, -0.8, 0.0, 0.3, -1.1]
+    gripper_position = 100
+
+    try:
+        while True:
+            zmq_control.servoL(example_pose)
+            gripper_control.setGripperTargetPos(gripper_position)
+            # zmq_control.moveJ(example_joint_positions)
+            time.sleep(0.02)
+    except KeyboardInterrupt:
+        print("Stopping the control interface.")
+    finally:
+        zmq_control.cleanup()
+        gripper_control.cleanup()
+        print("ZeroMQ connection cleaned up.")
