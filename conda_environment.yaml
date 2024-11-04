@@ -58,4 +58,3 @@ dependencies:
     # implicitly depend on conda package exiftool
     - PyExifTool==0.5
     - pyserial==3.5
-    - 

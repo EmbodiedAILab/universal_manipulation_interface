@@ -6,8 +6,9 @@ from multiprocessing.managers import SharedMemoryManager
 import scipy.interpolate as si
 import scipy.spatial.transform as st
 import numpy as np
-from umi.sim_world.ros_control_interface import ROSControlInterface
-from umi.sim_world.ros_receive_interface import ROSReceiveInterface
+from umi.sim_world.ros_control_interface import ControlInterface
+from umi.sim_world.ros_receive_interface import ReceiveInterface
+from umi.sim_world.zmq_receiver import ZmqSubcriber
 from umi.shared_memory.shared_memory_queue import (
     SharedMemoryQueue, Empty)
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
@@ -44,7 +45,7 @@ class SimArmController(mp.Process):
             joints_init=None,
             joints_init_speed=1.05,
             soft_real_time=False,
-            verbose=False,
+            verbose=True,
             receive_keys=None,
             get_max_k=None,
             receive_latency=0.0
@@ -98,6 +99,7 @@ class SimArmController(mp.Process):
         self.receive_latency = receive_latency
         self.verbose = verbose
         self.reset_value = False
+        self.zmq_sub = ZmqSubcriber(shm_manager=shm_manager)
 
         if get_max_k is None:
             get_max_k = int(frequency * 5)
@@ -116,39 +118,50 @@ class SimArmController(mp.Process):
         )
 
         # build ring buffer
-        if receive_keys is None:
-            receive_keys = [
-                'ActualTCPPose',
-                'ActualTCPSpeed',
-                'ActualQ',
-                'ActualQd',
+        # ros_r = ReceiveInterface()
+        # if receive_keys is None:
+        #     receive_keys = [
+        #         'ActualTCPPose',
+        #         # 'ActualTCPSpeed',
+        #         'ActualQ',
+        #         # 'ActualQd',
 
-                'TargetTCPPose',
-                'TargetTCPSpeed',
-                'TargetQ',
-                'TargetQd'
-            ]
-        ros_r = ROSReceiveInterface()
-        example = dict()
-        for key in receive_keys:
-            example[key] = np.array(getattr(ros_r, 'get'+key)())
-        example['robot_receive_timestamp'] = time.time()
-        example['robot_timestamp'] = time.time()
-        ring_buffer = SharedMemoryRingBuffer.create_from_examples(
-            shm_manager=shm_manager,
-            examples=example,
-            get_max_k=get_max_k,
-            get_time_budget=0.2,
-            put_desired_frequency=frequency
-        )
+        #         # 'TargetTCPPose',
+        #         # 'TargetTCPSpeed',
+        #         # 'TargetQ',
+        #         # 'TargetQd'
+        #     ]
+        # self.wait_for_valid_data(ros_r)
+
+        # self.wait_for_valid_data()
+        # example = dict()
+        # # for key in receive_keys:
+        # #     example[key] = np.array(getattr(ros_r, 'get'+key)())
+        # example['ActualTCPPose'] = self.ros_r.get_state()['ActualTCPPose']
+        # example['ActualQ'] = self.ros_r.get_state()['ActualQ']
+        # example['robot_receive_timestamp'] = time.time()
+        # example['robot_timestamp'] = time.time()
+        # print(f'get example: {example}')
+        # ring_buffer = SharedMemoryRingBuffer.create_from_examples(
+        #     shm_manager=shm_manager,
+        #     examples=example,
+        #     get_max_k=get_max_k,
+        #     get_time_budget=0.2,
+        #     put_desired_frequency=frequency
+        # )
 
         self.ready_event = mp.Event()
         self.input_queue = input_queue
-        self.ring_buffer = ring_buffer
+        self.ring_buffer = None
         self.receive_keys = receive_keys
+        self.shm_manager = shm_manager
+        self.get_max_k = get_max_k
+        self.frequency = frequency
+
     
     # ========= launch method ===========
     def start(self, wait=True):
+        self.zmq_sub.start()
         super().start()
         if wait:
             self.start_wait()
@@ -160,6 +173,7 @@ class SimArmController(mp.Process):
             'cmd': Command.STOP.value
         }
         self.input_queue.put(message)
+        self.zmq_sub.stop()
         if wait:
             self.stop_wait()
 
@@ -217,15 +231,33 @@ class SimArmController(mp.Process):
     # ========= receive APIs =============
     def get_state(self, k=None, out=None):
         if k is None:
-            return self.ring_buffer.get(out=out)
+            return self.zmq_sub.get_eef_state(out=out)
         else:
-            return self.ring_buffer.get_last_k(k=k,out=out)
+            return self.zmq_sub.get_eef_state(k=k,out=out)
     
     def get_all_state(self):
-        return self.ring_buffer.get_all()
-    
+        return self.zmq_sub.get_all_state_eef()
+
     # ========= main loop in process ============
     def run(self):
+        # self.wait_for_valid_data()
+
+        # example = dict()
+        # # for key in receive_keys:
+        # #     example[key] = np.array(getattr(ros_r, 'get'+key)())
+        # example['ActualTCPPose'] = self.ros_r.get_eef_state()['ActualTCPPose']
+        # # example['ActualQ'] = self.ros_r.get_state()['ActualQ']
+        # example['robot_receive_timestamp'] = time.time()
+        # example['robot_timestamp'] = time.time()
+        # print(f'get example: {example}')
+        # self.ring_buffer = SharedMemoryRingBuffer.create_from_examples(
+        #     shm_manager=self.shm_manager,
+        #     examples=example,
+        #     get_max_k=self.get_max_k,
+        #     get_time_budget=0.2,
+        #     put_desired_frequency=self.frequency
+        # )
+    
         # enable soft real-time
         if self.soft_real_time:
             os.sched_setscheduler(
@@ -234,24 +266,28 @@ class SimArmController(mp.Process):
         # start rtde
         robot_ip = self.robot_ip
         print('robot_ip', robot_ip)
-        ros_c = ROSControlInterface()
-        ros_r = ROSReceiveInterface()
+        ros_c = ControlInterface()
+        # ros_r = ReceiveInterface()
+
 
         try:
             if self.verbose:
                 print(f"[SimArmController] Connect to robot: {robot_ip}")
 
             # init pose
-            if self.joints_init is not None:
-                # assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
-                assert ros_c.moveJ(self.joints_init)
+            # if self.joints_init is not None:
+            #     # assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
+            #     assert ros_c.moveJ(self.joints_init)
 
             # main loop
             dt = 1. / self.frequency
-            curr_pose = ros_r.getActualTCPPose()
+            # self.wait_for_valid_data(ros_r)
+            # curr_pose = self.ros_r.getActualTCPPose()
+            curr_pose = self.zmq_sub.get_eef_state()['ActualTCPPose']
             # use monotonic time to make sure the control loop never go backward
             curr_t = time.monotonic()
             last_waypoint_time = curr_t
+            # last_loop_time = curr_t
             pose_interp = PoseTrajectoryInterpolator(
                 times=[curr_t],
                 poses=[curr_pose]
@@ -261,32 +297,31 @@ class SimArmController(mp.Process):
             iter_idx = 0
             keep_running = True
             while keep_running:
-                if self.reset_value:
-                    print('reset move lll')
-                    RESET_VALUE=False
-                    assert ros_c.moveJ(self.joints_init)
-                    print('reset move')
-                    continue
-
                 # send command to robot
                 t_now = time.monotonic()
+                # print(f"hz: {1 / (t_now - last_loop_time)}")
+                # last_loop_time = t_now
                 pose_command = pose_interp(t_now)
-                vel = 0.5
-                acc = 0.5
+                # vel = 0.5
+                # acc = 0.5
+                #print(f"[sim_arm_controller] pose: {pose_command}")
                 assert ros_c.servoL(pose_command)
                 
                 # update robot state
-                state = dict()
-                for key in self.receive_keys:
-                    state[key] = np.array(getattr(ros_r, 'get'+key)())
-                t_recv = time.time()
-                state['robot_receive_timestamp'] = t_recv
-                state['robot_timestamp'] = t_recv - self.receive_latency
-                self.ring_buffer.put(state)
+                # state = dict()
+                # # for key in self.receive_keys:
+                # #     state[key] = np.array(getattr(ros_r, 'get'+key)())
+                # state['ActualTCPPose'] = self.ros_r.get_eef_state()['ActualTCPPose']
+                # # state['ActualQ'] = self.ros_r.get_state()['ActualQ']
+                # t_recv = time.time()
+                # state['robot_receive_timestamp'] = t_recv
+                # state['robot_timestamp'] = t_recv - self.receive_latency
+                # self.ring_buffer.put(state)
 
                 # fetch command from queue
                 try:
                     commands = self.input_queue.get_k(1)
+                    #print(f"[sim_arm_controller] commands get from queue: {commands}")
                     n_cmd = len(commands['cmd'])
                 except Empty:
                     n_cmd = 0
@@ -336,13 +371,15 @@ class SimArmController(mp.Process):
                             curr_time=curr_time,
                             last_waypoint_time=last_waypoint_time
                         )
+                        # t_now2 = time.monotonic()
+                        # pose_command = pose_interp(t_now2)
+                        # print(f'target_time: {target_time}, times: {t}, curr_time: {curr_time}, target_pose: {target_pose}, pose_command: {pose_command}')
                         last_waypoint_time = target_time
                     else:
                         keep_running = False
                         break
 
                 # regulate frequency
-                # rtde_c.waitPeriod(t_start)
                 t_wait_util = t_start + (iter_idx + 1) * dt
                 precise_wait(t_wait_util, time_func=time.monotonic)
 
@@ -353,9 +390,23 @@ class SimArmController(mp.Process):
 
                 if self.verbose:
                     print(f"[SimArmController] Actual frequency {1/(time.monotonic() - t_now)}")
-
+        except Exception as e:
+            print(f"[SimArmController] Exception: {e}")
         finally:
             self.ready_event.set()
+            ros_c.cleanup()
+            # ros_r.cleanup()
 
-            if self.verbose:
+            if True:
                 print(f"[SimArmController] Disconnected from robot: {robot_ip}")
+    
+    def wait_for_valid_data(self, timeout=10, check_interval=0.1):
+        start_time = time.time()
+        while True:
+            if 'ActualTCPPose' in self.ros_r.get_eef_state().keys():
+                return
+
+            if time.time() - start_time > timeout:
+                raise TimeoutError("wait timeout, check zmq data")
+            
+            time.sleep(check_interval)

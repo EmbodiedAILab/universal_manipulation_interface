@@ -7,8 +7,8 @@ from umi.shared_memory.shared_memory_queue import SharedMemoryQueue, Empty
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.common.precise_sleep import precise_wait
 from umi.common.pose_trajectory_interpolator import PoseTrajectoryInterpolator
-from umi.sim_world.ros_control_interface import ROSControlInterface
-from umi.sim_world.ros_receive_interface import ROSReceiveInterface
+from umi.sim_world.ros_control_interface import GripperControlInterface
+from umi.sim_world.zmq_receiver import ZmqSubcriber
 
 
 class Command(enum.Enum):
@@ -23,7 +23,7 @@ class SimGripperController(mp.Process):
         shm_manager: SharedMemoryManager,
         band_rate=115200,
         port="/dev/ttyUSBDH_",
-        frequency=30,  # 手册没查询到，一般20-40Hz，跟wsg夹爪保持一致
+        frequency=10,  # 手册没查询到，一般20-40Hz，跟wsg夹爪保持一致
         max_speed=0.5, #0.07273,  # 双侧夹爪相对的速度，单位m/s (根据手册，打开时间约1.1s)
         max_width=0.08,  # 夹爪的最大打开宽度，单位m
         max_force=140,  # 夹爪的最大力
@@ -52,32 +52,34 @@ class SimGripperController(mp.Process):
         # build input queue
         example = {
             "cmd": Command.SCHEDULE_WAYPOINT.value,
-            "target_pos": 0.0,
+            "target_pos": 100.0,
             "target_time": 0.0,
         }
         input_queue = SharedMemoryQueue.create_from_examples(
             shm_manager=shm_manager, examples=example, buffer_size=command_queue_size
         )
 
-        example = {
-            "gripper_position": 0.0,
-            "gripper_receive_timestamp": time.time(),
-            "gripper_timestamp": time.time(),
-        }
-        ring_buffer = SharedMemoryRingBuffer.create_from_examples(
-            shm_manager=shm_manager,
-            examples=example,
-            get_max_k=get_max_k,
-            get_time_budget=0.2,
-            put_desired_frequency=frequency,
-        )
+        # example = {
+        #     "gripper_position": 100.0,
+        #     "gripper_receive_timestamp": time.time(),
+        #     "gripper_timestamp": time.time(),
+        # }
+        # ring_buffer = SharedMemoryRingBuffer.create_from_examples(
+        #     shm_manager=shm_manager,
+        #     examples=example,
+        #     get_max_k=get_max_k,
+        #     get_time_budget=0.2,
+        #     put_desired_frequency=frequency,
+        # )
+        self.zmq_sub = ZmqSubcriber(shm_manager=shm_manager)
 
         self.ready_event = mp.Event()
         self.input_queue = input_queue
-        self.ring_buffer = ring_buffer
+        # self.ring_buffer = ring_buffer
 
     # ========= launch method ===========
     def start(self, wait=True):
+        self.zmq_sub.start()
         super().start()
         if wait:
             self.start_wait()
@@ -87,12 +89,13 @@ class SimGripperController(mp.Process):
     def stop(self, wait=True):
         message = {"cmd": Command.SHUTDOWN.value}
         self.input_queue.put(message)
+        self.zmq_sub.stop()
         if wait:
             self.stop_wait()
 
     def start_wait(self):
         self.ready_event.wait(self.launch_timeout)
-        #assert self.is_alive()
+        assert self.is_alive()
 
     def stop_wait(self):
         self.join()
@@ -126,114 +129,103 @@ class SimGripperController(mp.Process):
     # ========= receive APIs =============
     def get_state(self, k=None, out=None):
         if k is None:
-            return self.ring_buffer.get(out=out)
+            return self.zmq_sub.get_gripper_state(out=out)
         else:
-            return self.ring_buffer.get_last_k(k=k, out=out)
+            return self.zmq_sub.get_gripper_state(k=k,out=out)
 
     def get_all_state(self):
-        return self.ring_buffer.get_all()
+        return self.zmq_sub.get_all_state_gripper()
+    
+    # def run(self):
+    #     while True:
+    #         time.sleep(10.0)
 
     # ========= main loop in process ============
     def run(self):
         # start connection
         try:             
-                ros_c = ROSControlInterface()    
-                ros_r = ROSReceiveInterface()
-                # get initial
-                curr_pos = ros_r.getGripperCurrentPos()
-                curr_t = time.monotonic()
-                last_waypoint_time = curr_t
-                pose_interp = PoseTrajectoryInterpolator(
-                    times=[curr_t], poses=[[curr_pos, 0, 0, 0, 0, 0]]
-                )
+            ros_c = GripperControlInterface()
+            # get initial
+            curr_pos = self.zmq_sub.get_gripper_state()['gripper_position']
+            curr_t = time.monotonic()
+            last_waypoint_time = curr_t
+            pose_interp = PoseTrajectoryInterpolator(
+                times=[curr_t], poses=[[curr_pos, 0, 0, 0, 0, 0]]
+            )
 
-                keep_running = True
-                t_start = time.monotonic()
-                iter_idx = 0
-                target_pos = curr_pos
-                target_vel = self.max_speed
-                picked = False
-                while keep_running:
-                    # command gripper
-                    t_now = time.monotonic()
-                    dt = 1 / self.frequency
-                    t_target = t_now
-                    target_pos = pose_interp(t_target)[0]
-                    target_vel = (target_pos - pose_interp(t_target - dt)[0]) / dt
-                    origin_target_pos = target_pos
-                    
-                    tmp=target_pos
-                    if target_pos<0.068:
-                        tmp=target_pos-0.01
-                    target_pos=tmp
-                    
-                    #TODO
-                    # dh.SetTargetAbsPosition(target_pos)
-                    ros_c.setGripperTargetPos(target_pos)         
-                    print("origin_target_pos, target_vel, target_pos", origin_target_pos, target_vel, target_pos)
-                    # info = dh.GetRunStates()
+            keep_running = True
+            t_start = time.monotonic()
+            iter_idx = 0
+            target_pos = curr_pos
+            target_vel = self.max_speed
+            picked = False
+            while keep_running:
+                # command gripper
+                t_now = time.monotonic()
+                dt = 1 / self.frequency
+                t_target = t_now
+                target_pos = pose_interp(t_target)[0]
+                target_vel = (target_pos - pose_interp(t_target - dt)[0]) / dt
+                origin_target_pos = target_pos
+                # print("target_pos", target_pos)
+                ros_c.setGripperTargetPos(target_pos)   #TODO 夹爪控制待调试       
 
-                    # get state from robot
-                    state = {
-                        "gripper_position": ros_r.getGripperCurrentPos() / self.scale,
-                        "gripper_receive_timestamp": time.time(),
-                        "gripper_timestamp": time.time() - self.receive_latency,
-                    }
-                    self.ring_buffer.put(state)
+                # fetch command from queue
+                try:
+                    commands = self.input_queue.get_all()
+                    n_cmd = len(commands["cmd"])
+                except Empty:
+                    n_cmd = 0
 
-                    # fetch command from queue
-                    try:
-                        commands = self.input_queue.get_all()
-                        n_cmd = len(commands["cmd"])
-                    except Empty:
-                        n_cmd = 0
+                # execute commands
+                for i in range(n_cmd):
+                    command = dict()
+                    for key, value in commands.items():
+                        command[key] = value[i]
+                    cmd = command["cmd"]
 
-                    # execute commands
-                    for i in range(n_cmd):
-                        command = dict()
-                        for key, value in commands.items():
-                            command[key] = value[i]
-                        cmd = command["cmd"]
+                    if cmd == Command.SHUTDOWN.value:
+                        keep_running = False
+                        # stop immediately, ignore later commands
+                        break
+                    elif cmd == Command.SCHEDULE_WAYPOINT.value:
+                        target_pos = command["target_pos"] * self.scale
+                        if target_pos < 80:
+                            target_pos = target_pos - 10
+                        target_time = command["target_time"]
+                        # translate global time to monotonic time
+                        target_time = time.monotonic() - time.time() + target_time
+                        curr_time = t_now
+                        pose_interp = pose_interp.schedule_waypoint(
+                            pose=[target_pos, 0, 0, 0, 0, 0],
+                            time=target_time,
+                            # max_pos_speed=self.max_speed,
+                            # max_rot_speed=self.max_speed,
+                            curr_time=curr_time,
+                            last_waypoint_time=last_waypoint_time,
+                        )
+                        last_waypoint_time = target_time
+                    elif cmd == Command.RESTART_PUT.value:
+                        t_start = (
+                            command["target_time"] - time.time() + time.monotonic()
+                        )
+                        iter_idx = 1
+                    else:
+                        keep_running = False
+                        break
 
-                        if cmd == Command.SHUTDOWN.value:
-                            keep_running = False
-                            # stop immediately, ignore later commands
-                            break
-                        elif cmd == Command.SCHEDULE_WAYPOINT.value:
-                            target_pos = command["target_pos"] * self.scale
-                            target_time = command["target_time"]
-                            # translate global time to monotonic time
-                            target_time = time.monotonic() - time.time() + target_time
-                            curr_time = t_now
-                            pose_interp = pose_interp.schedule_waypoint(
-                                pose=[target_pos, 0, 0, 0, 0, 0],
-                                time=target_time,
-                                max_pos_speed=self.max_speed,
-                                max_rot_speed=self.max_speed,
-                                curr_time=curr_time,
-                                last_waypoint_time=last_waypoint_time,
-                            )
-                            last_waypoint_time = target_time
-                        elif cmd == Command.RESTART_PUT.value:
-                            t_start = (
-                                command["target_time"] - time.time() + time.monotonic()
-                            )
-                            iter_idx = 1
-                        else:
-                            keep_running = False
-                            break
+                # first loop successful, ready to receive command
+                if iter_idx == 0:
+                    self.ready_event.set()
+                iter_idx += 1
 
-                    # first loop successful, ready to receive command
-                    if iter_idx == 0:
-                        self.ready_event.set()
-                    iter_idx += 1
-
-                    # regulate frequency
-                    dt = 1 / self.frequency
-                    t_end = t_start + dt * iter_idx
-                    precise_wait(t_end=t_end, time_func=time.monotonic)
+                # regulate frequency
+                dt = 1 / self.frequency
+                t_end = t_start + dt * iter_idx
+                precise_wait(t_end=t_end, time_func=time.monotonic)
 
         finally:
+            ros_c.cleanup()
             self.ready_event.set()
-            if self.verbose:
+            if True:
                 print(f"[SimGripperController] Disconnected from robot")
