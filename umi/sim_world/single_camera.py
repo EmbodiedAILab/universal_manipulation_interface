@@ -32,7 +32,7 @@ class SingleCamera(mp.Process):
             # or /dev/v4l/by-id/usb-Elgato_Elgato_HD60_X_A00XB320216MTR-video-index0
             # dev_video_path,
             serial_number,
-            camera_receiver: CameraReceiver,
+            # camera_receiver: CameraReceiver,
             resolution=(1280, 720),
             capture_fps=60,
             put_fps=None,
@@ -95,6 +95,8 @@ class SingleCamera(mp.Process):
             examples=examples,
             buffer_size=128
         )
+        
+        camera_receiver = CameraReceiver() 
 
         self.serial_number = serial_number
         self.shm_manager = shm_manager

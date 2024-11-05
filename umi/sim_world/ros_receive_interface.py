@@ -49,7 +49,9 @@ class ReceiveInterface:
         ry = qy / sin_theta_over_two
         rz = qz / sin_theta_over_two
         return [rx * angle, ry * angle, rz * angle]
-
+    
+    
+    # ================= Arm Status API ===================    
     def getActualTCPPose(self):
         if self.eef_pose is None:
             return None
@@ -62,11 +64,30 @@ class ReceiveInterface:
         
         # 返回位姿 [x, y, z, rx, ry, rz]
         return [position['x'], position['y'], position['z'], axis_angle[0], axis_angle[1], axis_angle[2]]
+    
+    def getActualTCPSpeed(self):
+        return
 
     def getActualQ(self):
         with self.lock:
             return self.arm_joint_positions if self.arm_joint_positions else []
+    
+    def getActualQd(self):
+        return
+    
+    def getTargetTCPPose(self):
+        return  
 
+    def getTargetTCPSpeed(self):
+        return
+
+    def getTargetQ(self):
+        return
+
+    def getTargetQd(self):
+        return
+    
+    # ================= Gripper Status API ===================    
     def getGripperCurrentPos(self):
         with self.lock:
             return self.gripper_width if self.gripper_width is not None else 0.0

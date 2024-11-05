@@ -119,14 +119,14 @@ class SimArmController(mp.Process):
         if receive_keys is None:
             receive_keys = [
                 'ActualTCPPose',
-                'ActualTCPSpeed',
+                # 'ActualTCPSpeed',
                 'ActualQ',
-                'ActualQd',
+                # 'ActualQd',
 
-                'TargetTCPPose',
-                'TargetTCPSpeed',
-                'TargetQ',
-                'TargetQd'
+                # 'TargetTCPPose',
+                # 'TargetTCPSpeed',
+                # 'TargetQ',
+                # 'TargetQd'
             ]
         ros_r = ReceiveInterface()
         example = dict()

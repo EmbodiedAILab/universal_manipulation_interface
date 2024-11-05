@@ -148,7 +148,7 @@ class BimanualUmiSimEnv:
             # send every frame immediately after arrival
             # ignores put_fps
             put_downsample=False,
-            record_fps=capture_fps,
+            # record_fps=capture_fps,
             # enable_color=True,
             # enable_depth=False,
             # enable_infrared=False,
@@ -216,7 +216,7 @@ class BimanualUmiSimEnv:
         for gc in grippers_config:
             this_gripper = SimGripperController(
                 shm_manager=shm_manager,
-                hostname=gc['gripper_ip'],
+                # hostname=gc['gripper_ip'],
                 port=gc['gripper_port'],
                 receive_latency=gc['gripper_obs_latency'],
                 use_meters=True
@@ -244,14 +244,14 @@ class BimanualUmiSimEnv:
         self.robot_obs_horizon = robot_obs_horizon
         self.gripper_obs_horizon = gripper_obs_horizon
         # recording
-        self.output_dir = output_dir
-        self.video_dir = video_dir
-        self.replay_buffer = replay_buffer
+        # self.output_dir = output_dir
+        # self.video_dir = video_dir
+        # self.replay_buffer = replay_buffer
         # temp memory buffers
         self.last_camera_data = None
         # recording buffers
-        self.obs_accumulator = None
-        self.action_accumulator = None
+        # self.obs_accumulator = None
+        # self.action_accumulator = None
 
         self.start_time = None
         self.last_time_step = 0
@@ -494,106 +494,106 @@ class BimanualUmiSimEnv:
     def get_gripper_state(self):
         return [gripper.get_state() for gripper in self.grippers]
 
-    # recording API
-    def start_episode(self, start_time=None):
-        "Start recording and return first obs"
-        if start_time is None:
-            start_time = time.time()
-        self.start_time = start_time
+    # # recording API
+    # def start_episode(self, start_time=None):
+    #     "Start recording and return first obs"
+    #     if start_time is None:
+    #         start_time = time.time()
+    #     self.start_time = start_time
 
-        assert self.is_ready
+    #     assert self.is_ready
 
-        # prepare recording stuff
-        episode_id = self.replay_buffer.n_episodes
-        this_video_dir = self.video_dir.joinpath(str(episode_id))
-        this_video_dir.mkdir(parents=True, exist_ok=True)
-        n_cameras = self.camera.n_cameras
-        video_paths = list()
-        for i in range(n_cameras):
-            video_paths.append(
-                str(this_video_dir.joinpath(f'{i}.mp4').absolute()))
+    #     # prepare recording stuff
+    #     episode_id = self.replay_buffer.n_episodes
+    #     this_video_dir = self.video_dir.joinpath(str(episode_id))
+    #     this_video_dir.mkdir(parents=True, exist_ok=True)
+    #     n_cameras = self.camera.n_cameras
+    #     video_paths = list()
+    #     for i in range(n_cameras):
+    #         video_paths.append(
+    #             str(this_video_dir.joinpath(f'{i}.mp4').absolute()))
         
-        # start recording on camera
-        self.camera.restart_put(start_time=start_time)
-        self.camera.start_recording(video_path=video_paths, start_time=start_time)
+    #     # start recording on camera
+    #     self.camera.restart_put(start_time=start_time)
+    #     self.camera.start_recording(video_path=video_paths, start_time=start_time)
 
-        # create accumulators
-        self.obs_accumulator = ObsAccumulator()
-        self.action_accumulator = TimestampActionAccumulator(
-            start_time=start_time,
-            dt=1/self.frequency
-        )
-        print(f'Episode {episode_id} started!')
+    #     # create accumulators
+    #     self.obs_accumulator = ObsAccumulator()
+    #     self.action_accumulator = TimestampActionAccumulator(
+    #         start_time=start_time,
+    #         dt=1/self.frequency
+    #     )
+    #     print(f'Episode {episode_id} started!')
     
-    def end_episode(self):
-        "Stop recording"
-        assert self.is_ready
+    # def end_episode(self):
+    #     "Stop recording"
+    #     assert self.is_ready
         
-        # stop video recorder
-        self.camera.stop_recording()
+    #     # stop video recorder
+    #     self.camera.stop_recording()
 
-        # TODO
-        if self.obs_accumulator is not None:
-            # recording
-            assert self.action_accumulator is not None
+    #     # TODO
+    #     if self.obs_accumulator is not None:
+    #         # recording
+    #         assert self.action_accumulator is not None
 
-            # Since the only way to accumulate obs and action is by calling
-            # get_obs and exec_actions, which will be in the same thread.
-            # We don't need to worry new data come in here.
-            end_time = float('inf')
-            for key, value in self.obs_accumulator.timestamps.items():
-                end_time = min(end_time, value[-1])
-            end_time = min(end_time, self.action_accumulator.timestamps[-1])
+    #         # Since the only way to accumulate obs and action is by calling
+    #         # get_obs and exec_actions, which will be in the same thread.
+    #         # We don't need to worry new data come in here.
+    #         end_time = float('inf')
+    #         for key, value in self.obs_accumulator.timestamps.items():
+    #             end_time = min(end_time, value[-1])
+    #         end_time = min(end_time, self.action_accumulator.timestamps[-1])
 
-            actions = self.action_accumulator.actions
-            action_timestamps = self.action_accumulator.timestamps
-            n_steps = 0
-            if np.sum(self.action_accumulator.timestamps <= end_time) > 0:
-                n_steps = np.nonzero(self.action_accumulator.timestamps <= end_time)[0][-1]+1
+    #         actions = self.action_accumulator.actions
+    #         action_timestamps = self.action_accumulator.timestamps
+    #         n_steps = 0
+    #         if np.sum(self.action_accumulator.timestamps <= end_time) > 0:
+    #             n_steps = np.nonzero(self.action_accumulator.timestamps <= end_time)[0][-1]+1
 
-            if n_steps > 0:
-                timestamps = action_timestamps[:n_steps]
-                episode = {
-                    'timestamp': timestamps,
-                    'action': actions[:n_steps],
-                }
-                for robot_idx in range(len(self.robots)):
-                    robot_pose_interpolator = PoseInterpolator(
-                        t=np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_eef_pose']),
-                        x=np.array(self.obs_accumulator.data[f'robot{robot_idx}_eef_pose'])
-                    )
-                    robot_pose = robot_pose_interpolator(timestamps)
-                    episode[f'robot{robot_idx}_eef_pos'] = robot_pose[:,:3]
-                    episode[f'robot{robot_idx}_eef_rot_axis_angle'] = robot_pose[:,3:]
-                    joint_pos_interpolator = get_interp1d(
-                        np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_joint_pos']),
-                        np.array(self.obs_accumulator.data[f'robot{robot_idx}_joint_pos'])
-                    )
-                    joint_vel_interpolator = get_interp1d(
-                        np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_joint_vel']),
-                        np.array(self.obs_accumulator.data[f'robot{robot_idx}_joint_vel'])
-                    )
-                    episode[f'robot{robot_idx}_joint_pos'] = joint_pos_interpolator(timestamps)
-                    episode[f'robot{robot_idx}_joint_vel'] = joint_vel_interpolator(timestamps)
+    #         if n_steps > 0:
+    #             timestamps = action_timestamps[:n_steps]
+    #             episode = {
+    #                 'timestamp': timestamps,
+    #                 'action': actions[:n_steps],
+    #             }
+    #             for robot_idx in range(len(self.robots)):
+    #                 robot_pose_interpolator = PoseInterpolator(
+    #                     t=np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_eef_pose']),
+    #                     x=np.array(self.obs_accumulator.data[f'robot{robot_idx}_eef_pose'])
+    #                 )
+    #                 robot_pose = robot_pose_interpolator(timestamps)
+    #                 episode[f'robot{robot_idx}_eef_pos'] = robot_pose[:,:3]
+    #                 episode[f'robot{robot_idx}_eef_rot_axis_angle'] = robot_pose[:,3:]
+    #                 joint_pos_interpolator = get_interp1d(
+    #                     np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_joint_pos']),
+    #                     np.array(self.obs_accumulator.data[f'robot{robot_idx}_joint_pos'])
+    #                 )
+    #                 joint_vel_interpolator = get_interp1d(
+    #                     np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_joint_vel']),
+    #                     np.array(self.obs_accumulator.data[f'robot{robot_idx}_joint_vel'])
+    #                 )
+    #                 episode[f'robot{robot_idx}_joint_pos'] = joint_pos_interpolator(timestamps)
+    #                 episode[f'robot{robot_idx}_joint_vel'] = joint_vel_interpolator(timestamps)
 
-                    gripper_interpolator = get_interp1d(
-                        t=np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_gripper_width']),
-                        x=np.array(self.obs_accumulator.data[f'robot{robot_idx}_gripper_width'])
-                    )
-                    episode[f'robot{robot_idx}_gripper_width'] = gripper_interpolator(timestamps)
+    #                 gripper_interpolator = get_interp1d(
+    #                     t=np.array(self.obs_accumulator.timestamps[f'robot{robot_idx}_gripper_width']),
+    #                     x=np.array(self.obs_accumulator.data[f'robot{robot_idx}_gripper_width'])
+    #                 )
+    #                 episode[f'robot{robot_idx}_gripper_width'] = gripper_interpolator(timestamps)
 
-                self.replay_buffer.add_episode(episode, compressors='disk')
-                episode_id = self.replay_buffer.n_episodes - 1
-                print(f'Episode {episode_id} saved!')
+    #             self.replay_buffer.add_episode(episode, compressors='disk')
+    #             episode_id = self.replay_buffer.n_episodes - 1
+    #             print(f'Episode {episode_id} saved!')
             
-            self.obs_accumulator = None
-            self.action_accumulator = None
+    #         self.obs_accumulator = None
+    #         self.action_accumulator = None
 
-    def drop_episode(self):
-        self.end_episode()
-        self.replay_buffer.drop_episode()
-        episode_id = self.replay_buffer.n_episodes
-        this_video_dir = self.video_dir.joinpath(str(episode_id))
-        if this_video_dir.exists():
-            shutil.rmtree(str(this_video_dir))
-        print(f'Episode {episode_id} dropped!')
+    # def drop_episode(self):
+    #     self.end_episode()
+    #     self.replay_buffer.drop_episode()
+    #     episode_id = self.replay_buffer.n_episodes
+    #     this_video_dir = self.video_dir.joinpath(str(episode_id))
+    #     if this_video_dir.exists():
+    #         shutil.rmtree(str(this_video_dir))
+    #     print(f'Episode {episode_id} dropped!')

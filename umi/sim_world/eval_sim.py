@@ -208,9 +208,9 @@ def main(input, output, robot_config,
                 # latency
                 camera_obs_latency=0.125,
                 # obs
-                camera_obs_horizon=cfg.task.shape_meta.obs.camera_0.horizon,
-                robot_obs_horizon=cfg.task.shape_meta.obs.robot0_eef_pos.horizon,
-                gripper_obs_horizon=cfg.task.shape_meta.obs.robot0_gripper_width.horizon,
+                # camera_obs_horizon=cfg.task.shape_meta.obs.camera_0.horizon,
+                # robot_obs_horizon=cfg.task.shape_meta.obs.robot0_eef_pos.horizon,
+                # gripper_obs_horizon=cfg.task.shape_meta.obs.robot0_gripper_width.horizon,
                 no_mirror=no_mirror,
                 fisheye_converter=fisheye_converter,
                 mirror_swap=mirror_swap,
