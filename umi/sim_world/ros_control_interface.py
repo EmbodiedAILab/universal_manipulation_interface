@@ -1,101 +1,84 @@
-import rclpy
-from rclpy.node import Node
-from geometry_msgs.msg import PoseStamped
-from sensor_msgs.msg import JointState
-import transformations as tft
+import zmq
+import time
+import pickle
+from scipy.spatial.transform import Rotation as R
 
+class ControlInterface:
+    def __init__(self, zmq_host="localhost", zmq_port=5555):
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.PUB)
+        self.socket.bind(f"tcp://{zmq_host}:{zmq_port}")
 
-class ROSControlInterface(Node):
-    def __init__(self):
-        super().__init__('ros_control_interface')
-        
-        self.servoL_pub = self.create_publisher(PoseStamped, '/servoL_cmd', 10)
-        self.moveJ_pub = self.create_publisher(JointState, '/moveJ_cmd', 10)
-        self.gripper_state_pub = self.create_publisher(JointState, '/gripper_cmd', 10)
+    def send_message(self, topic, data):
+        """通过 ZeroMQ 发布序列化的消息"""
+        serialized_data = pickle.dumps(data)
+        self.socket.send_multipart([topic.encode(), serialized_data])
 
     def servoL(self, pose):
         """
-        将 [x, y, z, rx, ry, rz] 的位姿作为输入参数，并发布到 /servoL_cmd 主题上
+        接受位姿数据 [x, y, z, rx, ry, rz] 并通过 ZeroMQ 发布到 'servoL_cmd' 主题。
         :param pose: 位姿数据 [x, y, z, rx, ry, rz]
         """
         if len(pose) != 6:
-            self.get_logger().error("Pose must have 6 elements: [x, y, z, rx, ry, rz]")
+            print("Pose must have 6 elements: [x, y, z, rx, ry, rz]")
             return
-        
-        # 创建 PoseStamped 消息
-        pose_stamped = PoseStamped()
-        pose_stamped.header.stamp = self.get_clock().now().to_msg()
-        pose_stamped.header.frame_id = "tool_link"
 
-        # 填充位置
-        pose_stamped.pose.position.x = pose[0]
-        pose_stamped.pose.position.y = pose[1]
-        pose_stamped.pose.position.z = pose[2]
-
-        # 填充旋转四元数
+        # 转换旋转角度为四元数
         euler = [pose[3], pose[4], pose[5]]
-        quaternion = tft.quaternion_from_euler(*euler)
-        pose_stamped.pose.orientation.x = quaternion[0]
-        pose_stamped.pose.orientation.y = quaternion[1]
-        pose_stamped.pose.orientation.z = quaternion[2]
-        pose_stamped.pose.orientation.w = quaternion[3]
+        r = R.from_euler('xyz', euler)  # 将欧拉角转换为旋转对象
+        quaternion = r.as_quat()  # 获取四元数 [x, y, z, w]
 
-        # 发布消息
-        self.servoL_pub.publish(pose_stamped)
-        self.get_logger().info(f"Published Pose: {pose_stamped}")
-    
+        # 准备消息数据
+        pose_data = {
+            'position': {'x': pose[0], 'y': pose[1], 'z': pose[2]},
+            'orientation': {'x': quaternion[0], 'y': quaternion[1], 'z': quaternion[2], 'w': quaternion[3]},
+            'timestamp': int(time.time() * 1e6)
+        }
+
+        # 通过 ZeroMQ 发布消息
+        self.send_message('servoL_cmd', pose_data)
+        print(f"Sent servoL pose: {pose_data}")
+
     def moveJ(self, joint_positions):
         if not isinstance(joint_positions, list) or not all(isinstance(pos, (int, float)) for pos in joint_positions):
-            self.get_logger().error("Joint positions must be a list of numbers")
+            print("Joint positions must be a list of numbers")
             return
 
-        joint_state_msg = JointState()
-        joint_state_msg.header.stamp = self.get_clock().now().to_msg()
-        joint_state_msg.header.frame_id = "base_link"  # 修改 frame_id 根据需要
-        joint_state_msg.name = [f'joint_{i}' for i in range(len(joint_positions))]  # 根据需要修改关节名称
-        joint_state_msg.position = joint_positions
-        joint_state_msg.velocity = []  # 速度为空
-        joint_state_msg.effort = []    # 力矩为空
+        # 准备消息数据
+        joint_data = {
+            'positions': joint_positions,
+            'timestamp': int(time.time() * 1e6)
+        }
 
-        self.moveJ_pub.publish(joint_state_msg)
-        self.get_logger().info(f"Published JointState: {joint_positions}")
-        
+        # 通过 ZeroMQ 发布消息
+        self.send_message('moveJ_cmd', joint_data)
+        print(f"Sent moveJ joint positions: {joint_data}")
+
     def setGripperTargetPos(self, target_pos):
-        joint_positions = [-target_pos/2, -target_pos/2]
-        joint_state_msg = JointState()
-        joint_state_msg.header.stamp = self.get_clock().now().to_msg()
-        joint_state_msg.header.frame_id = "tool_link"  # 修改 frame_id 根据需要
-        joint_state_msg.name = ["gripper"]
-        joint_state_msg.position = joint_positions
-        joint_state_msg.velocity = []  # 速度为空
-        joint_state_msg.effort = []    # 力矩为空
+        joint_positions = [-target_pos / 2, -target_pos / 2]
         
-        self.gripper_state_pub.publish(joint_state_msg)
-        self.get_logger().info(f"Published Gripper JointState: {joint_positions}")
+        # 准备消息数据
+        gripper_data = {
+            'positions': joint_positions,
+            'timestamp': int(time.time() * 1e6)
+        }
 
-def main(args=None):
-    rclpy.init(args=args)
-    control_interface = ROSControlInterface()
-    
-    # 示例 pose 数据 [x, y, z, rx, ry, rz]
-    example_pose = [1.0, 0.0, 0.5, 0.0, 0.0, 0.0]
-        
-    try:
-        # rate = control_interface.create_rate(1)  # 设置循环频率为1Hz
-        while rclpy.ok():
-            control_interface.servoL(example_pose)
-            control_interface.get_logger().info("servoL called.")  # 调试信息
-        
-    except Exception as e:
-        control_interface.get_logger().error(f"Exception occurred: {str(e)}")
-    except KeyboardInterrupt:
-        control_interface.get_logger().info("Keyboard interrupt received.")
-    finally:
-        control_interface.destroy_node()
-        rclpy.shutdown()
-        control_interface.get_logger().info("Node destroyed and shutdown complete.")
-    
+        # 通过 ZeroMQ 发布消息
+        self.send_message('gripper_cmd', gripper_data)
+        print(f"Sent gripper positions: {gripper_data}")
 
+
+# 示例使用
 if __name__ == "__main__":
-    main()
+    zmq_control = ControlInterface()
 
+    # 示例数据
+    example_pose = [1.0, 0.0, 0.5, 0.0, 0.0, 0.0]
+    example_joint_positions = [0.5, 1.2, -0.8, 0.0, 0.3, -1.1]
+    gripper_position = 0.04  # 示例夹爪目标位置
+
+    # 发送示例消息
+    while True:
+        zmq_control.servoL(example_pose)
+        zmq_control.moveJ(example_joint_positions)
+        zmq_control.setGripperTargetPos(gripper_position)

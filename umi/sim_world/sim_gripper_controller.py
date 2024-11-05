@@ -7,8 +7,8 @@ from umi.shared_memory.shared_memory_queue import SharedMemoryQueue, Empty
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.common.precise_sleep import precise_wait
 from umi.common.pose_trajectory_interpolator import PoseTrajectoryInterpolator
-from umi.sim_world.ros_control_interface import ROSControlInterface
-from umi.sim_world.ros_receive_interface import ROSReceiveInterface
+from umi.sim_world.ros_control_interface import ControlInterface
+from umi.sim_world.ros_receive_interface import ReceiveInterface
 
 
 class Command(enum.Enum):
@@ -137,8 +137,8 @@ class SimGripperController(mp.Process):
     def run(self):
         # start connection
         try:             
-                ros_c = ROSControlInterface()    
-                ros_r = ROSReceiveInterface()
+                ros_c = ControlInterface()    
+                ros_r = ReceiveInterface()
                 # get initial
                 curr_pos = ros_r.getGripperCurrentPos()
                 curr_t = time.monotonic()

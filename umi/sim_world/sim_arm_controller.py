@@ -6,8 +6,8 @@ from multiprocessing.managers import SharedMemoryManager
 import scipy.interpolate as si
 import scipy.spatial.transform as st
 import numpy as np
-from umi.sim_world.ros_control_interface import ROSControlInterface
-from umi.sim_world.ros_receive_interface import ROSReceiveInterface
+from umi.sim_world.ros_control_interface import ControlInterface
+from umi.sim_world.ros_receive_interface import ReceiveInterface
 from umi.shared_memory.shared_memory_queue import (
     SharedMemoryQueue, Empty)
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
@@ -128,7 +128,7 @@ class SimArmController(mp.Process):
                 'TargetQ',
                 'TargetQd'
             ]
-        ros_r = ROSReceiveInterface()
+        ros_r = ReceiveInterface()
         example = dict()
         for key in receive_keys:
             example[key] = np.array(getattr(ros_r, 'get'+key)())
@@ -234,8 +234,8 @@ class SimArmController(mp.Process):
         # start rtde
         robot_ip = self.robot_ip
         print('robot_ip', robot_ip)
-        ros_c = ROSControlInterface()
-        ros_r = ROSReceiveInterface()
+        ros_c = ControlInterface()
+        ros_r = ReceiveInterface()
 
         try:
             if self.verbose:
