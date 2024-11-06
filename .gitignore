@@ -181,3 +181,6 @@ realsense_aruco_ws/src/umi_control/output_link_traj/*
 
 data_folder/
 bash/*
+sim2sim_o3de_ws/build
+sim2sim_o3de_ws/install
+sim2sim_o3de_ws/log

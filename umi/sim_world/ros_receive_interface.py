@@ -29,11 +29,11 @@ class ReceiveInterface:
                 data = pickle.loads(serialized_data)
 
                 # 根据 ZeroMQ 主题更新内部状态
-                if topic == "joint_states_cmd" and isinstance(data, dict):
+                if topic == "joint_states" and isinstance(data, dict):
                     self.arm_joint_positions = data['positions']
-                elif topic == "eef_pose_cmd" and isinstance(data, dict):
+                elif topic == "eef_pose" and isinstance(data, dict):
                     self.eef_pose = data
-                elif topic == "gripper_width_cmd" and isinstance(data, dict):
+                elif topic == "gripper_width" and isinstance(data, dict):
                     self.gripper_width = data['width']
             except Exception as e:
                 print(f"ZMQ Error: {e}")

@@ -4,7 +4,7 @@ import pickle
 from scipy.spatial.transform import Rotation as R
 
 class ControlInterface:
-    def __init__(self, zmq_host="localhost", zmq_port=5555):
+    def __init__(self, zmq_host="localhost", zmq_port=5554):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.PUB)
         self.socket.bind(f"tcp://{zmq_host}:{zmq_port}")
