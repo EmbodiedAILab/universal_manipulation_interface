@@ -16,16 +16,18 @@ class ControlInterface:
 
     def servoL(self, pose):
         """
-        接受位姿数据 [x, y, z, rx, ry, rz] 并通过 ZeroMQ 发布到 'servoL_cmd' 主题。
-        :param pose: 位姿数据 [x, y, z, rx, ry, rz]
+        接受位姿数据 [x, y, z, rx, ry, rz]（旋转部分为轴角表示）并通过 ZeroMQ 发布到 'servoL_cmd' 主题。
+        :param pose: 位姿数据 [x, y, z, rx, ry, rz]，其中 [rx, ry, rz] 是旋转轴角表示。
         """
         if len(pose) != 6:
             print("Pose must have 6 elements: [x, y, z, rx, ry, rz]")
             return
 
-        # 转换旋转角度为四元数
-        euler = [pose[3], pose[4], pose[5]]
-        r = R.from_euler('xyz', euler)  # 将欧拉角转换为旋转对象
+        # 将 [rx, ry, rz] 作为旋转向量（轴角表示）
+        rotation_vector = [pose[3], pose[4], pose[5]]  # 旋转向量，表示旋转轴和旋转角度
+
+        # 创建旋转对象，从轴角表示（旋转向量）生成四元数
+        r = R.from_rotvec(rotation_vector)  # 从旋转向量生成旋转对象
         quaternion = r.as_quat()  # 获取四元数 [x, y, z, w]
 
         # 准备消息数据
