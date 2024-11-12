@@ -15,6 +15,7 @@ from umi.sim_world.multi_camera import MultiCameras
 
 from umi.sim_world.sim_arm_controller import SimArmController
 from umi.sim_world.sim_gripper_controller import SimGripperController
+from umi.sim_world.ros_control_interface import ControlInterface
 
 # from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
 # from umi.real_world.wsg_controller import WSGController
@@ -199,16 +200,6 @@ class BimanualUmiSimEnv:
                     receive_keys=None,
                     receive_latency=rc['robot_obs_latency']
                 )
-            # elif rc['robot_type'].startswith('franka'):
-            #     this_robot = FrankaInterpolationController(
-            #         shm_manager=shm_manager,
-            #         robot_ip=rc['robot_ip'],
-            #         frequency=200,
-            #         Kx_scale=1.0,
-            #         Kxd_scale=np.array([2.0,1.5,2.0,1.0,1.0,1.0]),
-            #         verbose=False,
-            #         receive_latency=rc['robot_obs_latency']
-            #     )
             else:
                 raise NotImplementedError()
             robots.append(this_robot)
@@ -279,7 +270,7 @@ class BimanualUmiSimEnv:
             self.start_wait()
 
     def stop(self, wait=True):
-        self.end_episode()
+        # self.end_episode()
         if self.multi_cam_vis is not None:
             self.multi_cam_vis.stop(wait=False)
         for robot in self.robots:
@@ -424,25 +415,25 @@ class BimanualUmiSimEnv:
             # update obs_data
             obs_data.update(gripper_obs)
 
-        # accumulate obs
-        if self.obs_accumulator is not None:
-            for robot_idx, last_robot_data in enumerate(last_robots_data):
-                self.obs_accumulator.put(
-                    data={
-                        f'robot{robot_idx}_eef_pose': last_robot_data['ActualTCPPose'],
-                        f'robot{robot_idx}_joint_pos': last_robot_data['ActualQ'],
-                        f'robot{robot_idx}_joint_vel': last_robot_data['ActualQd'],
-                    },
-                    timestamps=last_robot_data['robot_timestamp']
-                )
+        # # accumulate obs
+        # if self.obs_accumulator is not None:
+        #     for robot_idx, last_robot_data in enumerate(last_robots_data):
+        #         self.obs_accumulator.put(
+        #             data={
+        #                 f'robot{robot_idx}_eef_pose': last_robot_data['ActualTCPPose'],
+        #                 f'robot{robot_idx}_joint_pos': last_robot_data['ActualQ'],
+        #                 f'robot{robot_idx}_joint_vel': last_robot_data['ActualQd'],
+        #             },
+        #             timestamps=last_robot_data['robot_timestamp']
+        #         )
 
-            for robot_idx, last_gripper_data in enumerate(last_grippers_data):
-                self.obs_accumulator.put(
-                    data={
-                        f'robot{robot_idx}_gripper_width': last_gripper_data['gripper_position'][...,None]
-                    },
-                    timestamps=last_gripper_data['gripper_timestamp']
-                )
+        #     for robot_idx, last_gripper_data in enumerate(last_grippers_data):
+        #         self.obs_accumulator.put(
+        #             data={
+        #                 f'robot{robot_idx}_gripper_width': last_gripper_data['gripper_position'][...,None]
+        #             },
+        #             timestamps=last_gripper_data['gripper_timestamp']
+        #         )
 
         return obs_data
     
@@ -481,12 +472,12 @@ class BimanualUmiSimEnv:
                     target_time=new_timestamps[i] - g_latency
                 )
 
-        # record actions
-        if self.action_accumulator is not None:
-            self.action_accumulator.put(
-                new_actions,
-                new_timestamps
-            )
+        # # record actions
+        # if self.action_accumulator is not None:
+        #     self.action_accumulator.put(
+        #         new_actions,
+        #         new_timestamps
+        #     )
     
     def get_robot_state(self):
         return [robot.get_state() for robot in self.robots]

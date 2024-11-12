@@ -79,7 +79,6 @@ from umi.real_world.real_inference_util import (get_real_obs_dict,
                                                 get_real_obs_resolution,
                                                 get_real_umi_obs_dict,
                                                 get_real_umi_action)
-from umi.real_world.spacemouse_shared_memory import Spacemouse
 from umi.common.pose_util import pose_to_mat, mat_to_pose
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
@@ -193,8 +192,7 @@ def main(input, output, robot_config,
 
     print("steps_per_inference:", steps_per_inference)
     with SharedMemoryManager() as shm_manager:
-        with Spacemouse(shm_manager=shm_manager) as sm, \
-            KeystrokeCounter() as key_counter, \
+        with KeystrokeCounter() as key_counter, \
             BimanualUmiSimEnv(
                 output_dir=output,
                 robots_config=robots_config,
@@ -295,164 +293,30 @@ def main(input, output, robot_config,
                 # ========= human control loop ==========
                 print("Human in control!")
                 robot_states = env.get_robot_state()
-                target_pose = np.stack([rs['TargetTCPPose'] for rs in robot_states])
+                # target_pose = np.stack([rs['TargetTCPPose'] for rs in robot_states])
 
                 gripper_states = env.get_gripper_state()
-                gripper_target_pos = np.asarray([gs['gripper_position'] for gs in gripper_states])
+                # gripper_target_pos = np.asarray([gs['gripper_position'] for gs in gripper_states])
                 
                 control_robot_idx_list = [0]
 
                 t_start = time.monotonic()
                 iter_idx = 0
                 while True:
-                    # calculate timing
-                    t_cycle_end = t_start + (iter_idx + 1) * dt
-                    t_sample = t_cycle_end - command_latency
-                    t_command_target = t_cycle_end + dt
-
-                    # pump obs
-                    obs = env.get_obs()
-
-                    # visualize
-                    episode_id = env.replay_buffer.n_episodes
-                    vis_img = obs[f'camera_{match_camera}'][-1]
-                    # match_episode_id = episode_id
-                    # if match_episode is not None:
-                    #     match_episode_id = match_episode
-                    # if match_episode_id in episode_first_frame_map:
-                    #     match_img = episode_first_frame_map[match_episode_id]
-                    #     ih, iw, _ = match_img.shape
-                    #     oh, ow, _ = vis_img.shape
-                    #     tf = get_image_transform2(
-                    #         input_res=(iw, ih), 
-                    #         output_res=(ow, oh), 
-                    #         bgr_to_rgb=False)
-                    #     match_img = tf(match_img).astype(np.float32) / 255
-                    #     vis_img = (vis_img + match_img) / 2
-                    # obs_left_img = obs['camera1_rgb'][-1]
-                    # obs_right_img = obs['camera0_rgb'][-1]
-                    # vis_img = np.concatenate([obs_left_img, obs_right_img, vis_img], axis=1)
-                    
-                    text = f'Episode: {episode_id}'
-                    cv2.putText(
-                        vis_img,
-                        text,
-                        (10,20),
-                        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                        fontScale=0.5,
-                        lineType=cv2.LINE_AA,
-                        thickness=3,
-                        color=(0,0,0)
-                    )
-                    cv2.putText(
-                        vis_img,
-                        text,
-                        (10,20),
-                        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                        fontScale=0.5,
-                        thickness=1,
-                        color=(255,255,255)
-                    )
-                    cv2.imshow('default', vis_img[...,::-1])
-                    _ = cv2.pollKey()
                     press_events = key_counter.get_press_events()
                     start_policy = False
                     for key_stroke in press_events:
                         if key_stroke == KeyCode(char='q'):
                             # Exit program
-                            env.end_episode()
+                            # env.end_episode()
                             exit(0)
                         elif key_stroke == KeyCode(char='c'):
                             # Exit human control loop
                             # hand control over to the policy
                             start_policy = True
-                        elif key_stroke == KeyCode(char='e'):
-                            # Next episode
-                            if match_episode is not None:
-                                match_episode = min(match_episode + 1, env.replay_buffer.n_episodes-1)
-                        elif key_stroke == KeyCode(char='w'):
-                            # Prev episode
-                            if match_episode is not None:
-                                match_episode = max(match_episode - 1, 0)
-                        elif key_stroke == KeyCode(char='m'):
-                            # move the robot
-                            duration = 3.0
-                            ep = match_replay_buffer.get_episode(match_episode_id)
-
-                            for robot_idx in range(1):
-                                pos = ep[f'robot{robot_idx}_eef_pos'][0]
-                                rot = ep[f'robot{robot_idx}_eef_rot_axis_angle'][0]
-                                grip = ep[f'robot{robot_idx}_gripper_width'][0]
-                                pose = np.concatenate([pos, rot])
-                                env.robots[robot_idx].servoL(pose, duration=duration)
-                                env.grippers[robot_idx].schedule_waypoint(grip, target_time=time.time() + duration)
-                                target_pose[robot_idx] = pose
-                                gripper_target_pos[robot_idx] = grip
-                            time.sleep(duration)
-
-                        elif key_stroke == Key.backspace:
-                            if click.confirm('Are you sure to drop an episode?'):
-                                env.drop_episode()
-                                key_counter.clear()
-                        elif key_stroke == KeyCode(char='a'):
-                            control_robot_idx_list = list(range(target_pose.shape[0]))
-                        elif key_stroke == KeyCode(char='1'):
-                            control_robot_idx_list = [0]
-                        elif key_stroke == KeyCode(char='2'):
-                            control_robot_idx_list = [1]
 
                     if start_policy:
                         break
-
-                    precise_wait(t_sample)
-                    # get teleop command
-                    sm_state = sm.get_motion_state_transformed()
-                    # print(sm_state)
-                    dpos = sm_state[:3] * (0.2 / frequency)
-                    drot_xyz = sm_state[3:] * (1.5 / frequency)
-
-                    drot = st.Rotation.from_euler('xyz', drot_xyz)
-                    for robot_idx in control_robot_idx_list:
-                        target_pose[robot_idx, :3] += dpos
-                        target_pose[robot_idx, 3:] = (drot * st.Rotation.from_rotvec(
-                            target_pose[robot_idx, 3:])).as_rotvec()
-
-                    dpos = 0
-                    if sm.is_button_pressed(0):
-                        # close gripper
-                        dpos = -gripper_speed / frequency
-                    if sm.is_button_pressed(1):
-                        dpos = gripper_speed / frequency
-                    for robot_idx in control_robot_idx_list:
-                        gripper_target_pos[robot_idx] = np.clip(gripper_target_pos[robot_idx] + dpos, 0, max_gripper_width)
-
-                    # solve collision with table
-                    # for robot_idx in control_robot_idx_list:
-                    #     solve_table_collision(
-                    #         ee_pose=target_pose[robot_idx],
-                    #         gripper_width=gripper_target_pos[robot_idx],
-                    #         height_threshold=robots_config[robot_idx]['height_threshold'])
-                    
-                    # solve collison between two robots
-                    # solve_sphere_collision(
-                    #     ee_poses=target_pose,
-                    #     robots_config=robots_config
-                    # )
-
-                    action = np.zeros((7 * target_pose.shape[0],))
-
-                    for robot_idx in range(target_pose.shape[0]):
-                        action[7 * robot_idx + 0: 7 * robot_idx + 6] = target_pose[robot_idx]
-                        action[7 * robot_idx + 6] = gripper_target_pos[robot_idx]
-
-
-                    # execute teleop command
-                    env.exec_actions(
-                        actions=[action], 
-                        timestamps=[t_command_target-time.monotonic()+time.time()],
-                        compensate_latency=False)
-                    precise_wait(t_cycle_end)
-                    iter_idx += 1
                 
                 # ========== policy control loop ==============
                 try:
@@ -461,7 +325,7 @@ def main(input, output, robot_config,
                     start_delay = 1.0
                     eval_t_start = time.time() + start_delay
                     t_start = time.monotonic() + start_delay
-                    env.start_episode(eval_t_start)
+                    # env.start_episode(eval_t_start)
 
                     # get current pose
                     obs = env.get_obs()
@@ -551,21 +415,21 @@ def main(input, output, robot_config,
                         print(f"Submitted {len(this_target_poses)} steps of actions.")
 
                         # visualize
-                        vis_img = obs[f'camera_{vis_camera_idx}'][-1,:,:,::-1].copy()
-                        episode_id = env.replay_buffer.n_episodes
-                        text = f'Episode: {episode_id}, Recording!'
-                        cv2.putText(
-                            vis_img,
-                            text,
-                            (10,30),
-                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                            fontScale=1,
-                            thickness=2,
-                            color=(255,255,255)
-                        )
+                        # vis_img = obs[f'camera_{vis_camera_idx}'][-1,:,:,::-1].copy()
+                        # episode_id = env.replay_buffer.n_episodes
+                        # text = f'Episode: {episode_id}, Recording!'
+                        # cv2.putText(
+                        #     vis_img,
+                        #     text,
+                        #     (10,30),
+                        #     fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                        #     fontScale=1,
+                        #     thickness=2,
+                        #     color=(255,255,255)
+                        # )
 
-                        cv2.imshow('default', vis_img)
-                        cv2.pollKey()
+                        # cv2.imshow('default', vis_img)
+                        # cv2.pollKey()
 
                         press_events = key_counter.get_press_events()
                         stop_episode = False
@@ -581,7 +445,7 @@ def main(input, output, robot_config,
                             print("Max Duration reached.")
                             stop_episode = True
                         if stop_episode:
-                            env.end_episode()
+                            # env.end_episode()
                             break
 
                         # wait for execution
@@ -591,7 +455,7 @@ def main(input, output, robot_config,
                 except KeyboardInterrupt:
                     print("Interrupted!")
                     # stop robot.
-                    env.end_episode()
+                    # env.end_episode()
                 
                 print("Stopped.")
 

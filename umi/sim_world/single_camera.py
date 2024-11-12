@@ -10,6 +10,7 @@ from umi.common.timestamp_accumulator import get_accumulate_timestamp_idxs
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.shared_memory.shared_memory_queue import SharedMemoryQueue, Full, Empty
 from umi.sim_world.camera_receive_interface import CameraReceiver
+import threading
 
 class Command(enum.Enum):
     RESTART_PUT = 0
@@ -96,11 +97,13 @@ class SingleCamera(mp.Process):
             buffer_size=128
         )
         
-        camera_receiver = CameraReceiver() 
+        self.camera_receiver = CameraReceiver()
+        self.receive_thread = threading.Thread(target=self.camera_receiver.receive_images)
+        self.receive_thread.daemon = True
+        self.receive_thread.start()
 
         self.serial_number = serial_number
         self.shm_manager = shm_manager
-        self.camera_receiver = camera_receiver
         self.resolution = resolution
         self.capture_fps = capture_fps
         self.put_fps = put_fps
@@ -191,7 +194,9 @@ class SingleCamera(mp.Process):
             
             frame = frame_data[0]['rgb'][0]
             t_recv = time.time()
-            t_cap = frame_data[0]['timestamp'][0] / 1000.0  # assuming timestamp is in milliseconds
+            # t_cap = frame_data[0]['timestamp'][0] / 1000.0  # assuming timestamp is in milliseconds
+            # 此处根据sim2sim进行时间单位对齐，timestamp / 10e6
+            t_cap = frame_data[0]['timestamp'][0] / 1000000.0
             t_cal = t_recv - self.receive_latency  # calibrated latency
 
             data = dict()
@@ -222,12 +227,12 @@ class SingleCamera(mp.Process):
                 for step_idx in global_idxs:
                     put_data['step_idx'] = step_idx
                     put_data['timestamp'] = t_cal
-                    self.ring_buffer.put(put_data, wait=False)
+                    self.ring_buffer.put(put_data, wait=True) # TODO 源代码为False, 改为True写入频率过快
             else:
                 step_idx = int((t_cal - put_start_time) * self.put_fps)
                 put_data['step_idx'] = step_idx
                 put_data['timestamp'] = t_cal
-                self.ring_buffer.put(put_data, wait=False)
+                self.ring_buffer.put(put_data, wait=True) # TODO 源代码为False, 改为True写入频率过快
 
             # signal ready
             if iter_idx == 0:
@@ -239,7 +244,7 @@ class SingleCamera(mp.Process):
                 vis_data = put_data
             elif self.vis_transform is not None:
                 vis_data = self.vis_transform(dict(data))
-            self.vis_ring_buffer.put(vis_data, wait=False)
+            self.vis_ring_buffer.put(vis_data, wait=True) # TODO 源代码为False, 改为True写入频率过快
 
             # perf
             t_end = time.time()

@@ -2,6 +2,7 @@ import zmq
 import threading
 import pickle
 import numpy as np
+import time
 
 class ReceiveInterface:
     def __init__(self, zmq_host="localhost", zmq_port=5555):
@@ -19,22 +20,27 @@ class ReceiveInterface:
 
         # 启动接收 ZeroMQ 消息的线程
         threading.Thread(target=self.zmq_listener, daemon=True).start()
+        time.sleep(2)
 
     def zmq_listener(self):
         while True:
             try:
                 # 接收消息
-                topic, serialized_data = self.socket.recv_multipart()
+                message  = self.socket.recv_multipart()
+                if len(message) == 1:
+                    continue
+                topic, serialized_data = message
                 topic = topic.decode('utf-8')
                 data = pickle.loads(serialized_data)
 
                 # 根据 ZeroMQ 主题更新内部状态
-                if topic == "joint_states" and isinstance(data, dict):
-                    self.arm_joint_positions = data['positions']
-                elif topic == "eef_pose" and isinstance(data, dict):
-                    self.eef_pose = data
-                elif topic == "gripper_width" and isinstance(data, dict):
-                    self.gripper_width = data['width']
+                with self.lock:
+                    if topic == "joint_states" and isinstance(data, dict):
+                        self.arm_joint_positions = data['positions']
+                    elif topic == "eef_pose" and isinstance(data, dict):
+                        self.eef_pose = data
+                    elif topic == "gripper_width" and isinstance(data, dict):
+                        self.gripper_width = data['width']
             except Exception as e:
                 print(f"ZMQ Error: {e}")
 
@@ -53,11 +59,12 @@ class ReceiveInterface:
     
     # ================= Arm Status API ===================    
     def getActualTCPPose(self):
-        if self.eef_pose is None:
-            return None
-        # 从 eef_pose 数据提取位置和方向
-        position = self.eef_pose['position']
-        rotation = self.eef_pose['orientation']
+        with self.lock:
+            if self.eef_pose is None:
+                return None
+            # 从 eef_pose 数据提取位置和方向
+            position = self.eef_pose['position']
+            rotation = self.eef_pose['orientation']
         
         # 将旋转四元数转换为轴角
         axis_angle = self.quaternion_to_axis_angle([rotation['x'], rotation['y'], rotation['z'], rotation['w']])

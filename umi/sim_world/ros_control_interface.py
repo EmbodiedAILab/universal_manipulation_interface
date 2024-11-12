@@ -10,9 +10,14 @@ class ControlInterface:
         self.socket.bind(f"tcp://{zmq_host}:{zmq_port}")
 
     def send_message(self, topic, data):
-        """通过 ZeroMQ 发布序列化的消息"""
-        serialized_data = pickle.dumps(data)
-        self.socket.send_multipart([topic.encode(), serialized_data])
+        """通过 ZeroMQ 发布序列化的消息"""     
+        try: 
+            serialized_data = pickle.dumps(data)
+            self.socket.send_multipart([topic.encode(), serialized_data])
+            return True
+        except zmq.ZMQError as e:
+            print(f"send failed with error: {e}")
+            return False
 
     def servoL(self, pose):
         """
@@ -38,8 +43,7 @@ class ControlInterface:
         }
 
         # 通过 ZeroMQ 发布消息
-        self.send_message('servoL_cmd', pose_data)
-        print(f"Sent servoL pose: {pose_data}")
+        return self.send_message('servoL_cmd', pose_data)
 
     def moveJ(self, joint_positions):
         if not isinstance(joint_positions, list) or not all(isinstance(pos, (int, float)) for pos in joint_positions):
@@ -53,8 +57,7 @@ class ControlInterface:
         }
 
         # 通过 ZeroMQ 发布消息
-        self.send_message('moveJ_cmd', joint_data)
-        print(f"Sent moveJ joint positions: {joint_data}")
+        return self.send_message('moveJ_cmd', joint_data)
 
     def setGripperTargetPos(self, target_pos):
         joint_positions = [-target_pos / 2, -target_pos / 2]
@@ -66,8 +69,7 @@ class ControlInterface:
         }
 
         # 通过 ZeroMQ 发布消息
-        self.send_message('gripper_cmd', gripper_data)
-        print(f"Sent gripper positions: {gripper_data}")
+        return self.send_message('gripper_cmd', gripper_data)
 
 
 # 示例使用
@@ -82,5 +84,5 @@ if __name__ == "__main__":
     # 发送示例消息
     while True:
         zmq_control.servoL(example_pose)
-        zmq_control.moveJ(example_joint_positions)
-        zmq_control.setGripperTargetPos(gripper_position)
+        # zmq_control.moveJ(example_joint_positions)
+        # zmq_control.setGripperTargetPos(gripper_position)

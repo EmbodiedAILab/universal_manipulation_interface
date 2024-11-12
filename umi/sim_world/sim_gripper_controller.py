@@ -7,7 +7,7 @@ from umi.shared_memory.shared_memory_queue import SharedMemoryQueue, Empty
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.common.precise_sleep import precise_wait
 from umi.common.pose_trajectory_interpolator import PoseTrajectoryInterpolator
-from umi.sim_world.ros_control_interface import ControlInterface
+# from umi.sim_world.ros_control_interface import ControlInterface
 from umi.sim_world.ros_receive_interface import ReceiveInterface
 
 
@@ -137,7 +137,7 @@ class SimGripperController(mp.Process):
     def run(self):
         # start connection
         try:             
-                ros_c = ControlInterface()    
+                # ros_c = ControlInterface()   # 当前与ros_control_interface中的初始化冲突，待调试  
                 ros_r = ReceiveInterface()
                 # get initial
                 curr_pos = ros_r.getGripperCurrentPos()
@@ -162,15 +162,9 @@ class SimGripperController(mp.Process):
                     target_vel = (target_pos - pose_interp(t_target - dt)[0]) / dt
                     origin_target_pos = target_pos
                     
-                    tmp=target_pos
-                    if target_pos<0.068:
-                        tmp=target_pos-0.01
-                    target_pos=tmp
-                    
-                    #TODO
                     # dh.SetTargetAbsPosition(target_pos)
-                    ros_c.setGripperTargetPos(target_pos)         
-                    print("origin_target_pos, target_vel, target_pos", origin_target_pos, target_vel, target_pos)
+                    # ros_c.setGripperTargetPos(target_pos)   #TODO 夹爪控制待调试       
+                    # print("origin_target_pos, target_vel, target_pos", origin_target_pos, target_vel, target_pos)
                     # info = dh.GetRunStates()
 
                     # get state from robot

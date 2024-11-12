@@ -242,9 +242,9 @@ class SimArmController(mp.Process):
                 print(f"[SimArmController] Connect to robot: {robot_ip}")
 
             # init pose
-            if self.joints_init is not None:
-                # assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
-                assert ros_c.moveJ(self.joints_init)
+            # if self.joints_init is not None:
+            #     # assert rtde_c.moveJ(self.joints_init, self.joints_init_speed, 1.4)
+            #     assert ros_c.moveJ(self.joints_init)
 
             # main loop
             dt = 1. / self.frequency
@@ -261,12 +261,12 @@ class SimArmController(mp.Process):
             iter_idx = 0
             keep_running = True
             while keep_running:
-                if self.reset_value:
-                    print('reset move lll')
-                    RESET_VALUE=False
-                    assert ros_c.moveJ(self.joints_init)
-                    print('reset move')
-                    continue
+                # if self.reset_value:
+                #     print('reset move lll')
+                #     RESET_VALUE=False
+                #     assert ros_c.moveJ(self.joints_init)
+                #     print('reset move')
+                #     continue
 
                 # send command to robot
                 t_now = time.monotonic()

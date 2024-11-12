@@ -2,7 +2,7 @@ import zmq
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image, JointState
-from geometry_msgs.msg import Pose, PoseStamped
+from geometry_msgs.msg import Pose
 from std_msgs.msg import Float64
 import pickle
 from cv_bridge import CvBridge
@@ -27,7 +27,7 @@ class ROStoZMQBridge(Node):
 
         self.bridge = CvBridge()
         
-        self.create_subscription(Image, '/test_image', self.image_callback, 10)
+        self.create_subscription(Image, '/camera_image_color_1st', self.image_callback, 10)
         self.create_subscription(JointState, '/joint_states', self.joint_states_callback, 10)
         self.create_subscription(Pose, '/eef_pose', self.eef_pose_callback, 10)
         self.create_subscription(Float64, '/gripper_width', self.gripper_width_callback, 10)
@@ -92,7 +92,7 @@ class ZMQtoROSBridge(Node):
         self.socket.connect(f"tcp://{zmq_host}:{zmq_port}")
         self.socket.setsockopt_string(zmq.SUBSCRIBE, "")  # 订阅所有消息
 
-        self.servoL_pub = self.create_publisher(PoseStamped, '/servoL_cmd', 10)
+        self.servoL_pub = self.create_publisher(Pose, '/eef_servo_controller', 10)
         self.moveJ_pub = self.create_publisher(JointState, '/moveJ_cmd', 10)
         self.gripper_pub = self.create_publisher(JointState, '/gripper_cmd', 10)
 
@@ -108,20 +108,18 @@ class ZMQtoROSBridge(Node):
 
                 # 根据 ZeroMQ 主题名称选择发布 ROS 话题
                 if topic == "servoL_cmd":
-                    pose_data = data  
-                    pose_stamped = PoseStamped()
-                    pose_stamped.header.stamp = self.get_clock().now().to_msg()
-                    pose_stamped.header.frame_id = "tool_link"
-                    pose_stamped.pose.position.x = pose_data['position']['x']
-                    pose_stamped.pose.position.y = pose_data['position']['y']
-                    pose_stamped.pose.position.z = pose_data['position']['z']
-                    pose_stamped.pose.orientation.x = pose_data['orientation']['x']
-                    pose_stamped.pose.orientation.y = pose_data['orientation']['y']
-                    pose_stamped.pose.orientation.z = pose_data['orientation']['z']
-                    pose_stamped.pose.orientation.w = pose_data['orientation']['w']
+                    pose_data = data
+                    pose = Pose()
+                    pose.position.x = pose_data['position']['x']
+                    pose.position.y = pose_data['position']['y']
+                    pose.position.z = pose_data['position']['z']
+                    pose.orientation.x = pose_data['orientation']['x']
+                    pose.orientation.y = pose_data['orientation']['y']
+                    pose.orientation.z = pose_data['orientation']['z']
+                    pose.orientation.w = pose_data['orientation']['w']
                     
-                    self.servoL_pub.publish(pose_stamped)
-                    self.get_logger().info(f"Published /servoL_cmd: {pose_stamped}")
+                    self.servoL_pub.publish(pose)
+                    self.get_logger().info(f"Published /servoL_cmd: {pose}")
                 elif topic == "moveJ_cmd":
                     joint_data = data  
                     joint_state_msg = JointState()
