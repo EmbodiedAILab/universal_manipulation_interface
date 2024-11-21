@@ -5,11 +5,15 @@ import time
 import shutil
 import math
 from multiprocessing.managers import SharedMemoryManager
+
+from diffusion_policy.real_world.multi_realsense import MultiRealsense
+from diffusion_policy.real_world.single_realsense import SingleRealsense
+from diffusion_policy.real_world.video_recorder import VideoRecorder
 from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
 from umi.real_world.wsg_controller import WSGController
 from umi.real_world.dh_controller import DHController
 # from umi.real_world.franka_interpolation_controller import FrankaInterpolationController
-from umi.real_world.multi_uvc_camera import MultiUvcCamera, VideoRecorder
+from umi.real_world.multi_uvc_camera import MultiUvcCamera
 from diffusion_policy.common.timestamp_accumulator import (
     TimestampActionAccumulator,
     ObsAccumulator
@@ -36,7 +40,7 @@ class BimanualUmiRsEnv:
             # env params
             frequency=20,
             # obs
-            obs_image_resolution=(224,224),
+            obs_image_resolution=(640,480),
             max_obs_buffer_size=60,
             obs_float32=False,
             camera_reorder=None,
@@ -60,7 +64,7 @@ class BimanualUmiRsEnv:
             init_joints=False,
             # vis params
             enable_multi_cam_vis=True,
-            multi_cam_vis_resolution=(960, 960),
+            multi_cam_vis_resolution=(1280, 720),
             # shared memory
             shm_manager=None
             ):
@@ -76,141 +80,73 @@ class BimanualUmiRsEnv:
             shm_manager = SharedMemoryManager()
             shm_manager.start()
 
-        # Find and reset all Elgato capture cards.
-        # Required to workaround a firmware bug.
-        reset_all_elgato_devices()
+        camera_serial_numbers = SingleRealsense.get_connected_devices_serial()
+        video_capture_resolution = (1280,720)
+        capture_fps = 30
 
-        # Wait for all v4l cameras to be back online
-        time.sleep(0.1)
-        v4l_paths = get_sorted_v4l_paths()
-        if camera_reorder is not None:
-            paths = [v4l_paths[i] for i in camera_reorder]
-            v4l_paths = paths
-
-        # compute resolution for vis
-        rw, rh, col, row = optimal_row_cols(
-            n_cameras=len(v4l_paths),
-            in_wh_ratio=4/3,
-            max_resolution=multi_cam_vis_resolution
-        )
-
-        # HACK: Separate video setting for each camera
-        # Elagto Cam Link 4k records at 4k 30fps
-        # Other capture card records at 720p 60fps
-        resolution = list()
-        capture_fps = list()
-        cap_buffer_size = list()
         video_recorder = list()
         transform = list()
         vis_transform = list()
-        for path in v4l_paths:
-            if 'Cam_Link_4K' in path:
-                res = (3840, 2160)
-                fps = 30
-                buf = 3
-                bit_rate = 6000*1000
-                def tf4k(data, input_res=res):
-                    img = data['color']
-                    f = get_image_transform(
-                        input_res=input_res,
-                        output_res=obs_image_resolution, 
-                        # obs output rgb
-                        bgr_to_rgb=True)
-                    img = f(img)
-                    if obs_float32:
-                        img = img.astype(np.float32) / 255
-                    data['color'] = img
-                    return data
-                transform.append(tf4k)
-            elif '435i' in path:
-                res = (1280, 720)
-                fps = 30
-                buf = 1
-                bit_rate = 3000*1000
-                
-                def tf(data, input_res=res):
-                    color_tf = get_image_transform2(
-                        in_res=input_res,
-                        out_res=obs_image_resolution, 
-                        # obs output rgb
-                        bgr_to_rgb=True)
-                    color_transform = color_tf
-                    if obs_float32:
-                        color_transform = lambda x: color_tf(x).astype(np.float32) / 255
-                    data['color'] = color_transform(data['color'])
-                    data['color'] = draw_gripper_mask(data['color'], color=(0,0,0), 
-                            mirror=no_mirror, gripper=True, finger=False, use_aa=True)
-                    return data
-                transform.append(tf)
-            else:
-                res = (1920, 1080)
-                fps = 60
-                buf = 1
-                bit_rate = 3000*1000
+        color_tf = get_image_transform(
+            input_res=video_capture_resolution,
+            output_res=obs_image_resolution,
+            # obs output rgb
+            bgr_to_rgb=True)
+        color_transform = color_tf
+        if obs_float32:
+            color_transform = lambda x: color_tf(x).astype(np.float32) / 255
 
-                is_mirror = None
-                if mirror_swap:
-                    mirror_mask = np.ones((224,224,3),dtype=np.uint8)
-                    mirror_mask = draw_predefined_mask(
-                        mirror_mask, color=(0,0,0), mirror=True, gripper=False, finger=False)
-                    is_mirror = (mirror_mask[...,0] == 0)
-                
-                def tf(data, input_res=res):
-                    img = data['color']
-                    if fisheye_converter is None:
-                        f = get_image_transform(
-                            input_res=input_res,
-                            output_res=obs_image_resolution, 
-                            # obs output rgb
-                            bgr_to_rgb=True)
-                        img = np.ascontiguousarray(f(img))
-                        if is_mirror is not None:
-                            img[is_mirror] = img[:,::-1,:][is_mirror]
-                        img = draw_predefined_mask(img, color=(0,0,0), 
-                            mirror=no_mirror, gripper=True, finger=False, use_aa=True)
-                    else:
-                        img = fisheye_converter.forward(img)
-                        img = img[...,::-1]
-                    if obs_float32:
-                        img = img.astype(np.float32) / 255
-                    data['color'] = img
-                    return data
-                transform.append(tf)
+        def transform(data):
+            data['color'] = color_transform(data['color'])
+            return data
 
-            resolution.append(res)
-            capture_fps.append(fps)
-            cap_buffer_size.append(buf)
-            video_recorder.append(VideoRecorder.create_hevc_nvenc(
-                fps=fps,
-                input_pix_fmt='bgr24',
-                bit_rate=bit_rate
-            ))
+        rw, rh, col, row = optimal_row_cols(
+            n_cameras=len(camera_serial_numbers),
+            in_wh_ratio=obs_image_resolution[0] / obs_image_resolution[1],
+            max_resolution=multi_cam_vis_resolution
+        )
+        vis_color_transform = get_image_transform(
+            input_res=video_capture_resolution,
+            output_res=(rw, rh),
+            bgr_to_rgb=False
+        )
 
-            def vis_tf(data, input_res=res):
-                img = data['color']
-                f = get_image_transform2(
-                    in_res=input_res,
-                    out_res=(rw,rh),
-                    bgr_to_rgb=False
-                )
-                img = f(img)
-                data['color'] = img
-                return data
-            vis_transform.append(vis_tf)
+        def vis_transform(data):
+            data['color'] = vis_color_transform(data['color'])
+            return data
 
-        camera = MultiUvcCamera(
-            dev_video_paths=v4l_paths,
+        recording_transfrom = None
+        recording_fps = capture_fps
+        recording_pix_fmt = 'bgr24'
+        # if not record_raw_video:
+        #     recording_transfrom = transform
+        #     recording_fps = frequency
+        #     recording_pix_fmt = 'rgb24'
+
+        video_recorder = VideoRecorder.create_h264(
+            fps=recording_fps,
+            codec='h264',
+            input_pix_fmt=recording_pix_fmt,
+            crf=21,
+            thread_type='FRAME',
+            thread_count=2)
+
+        camera = MultiRealsense(
+            serial_numbers=camera_serial_numbers,
             shm_manager=shm_manager,
-            resolution=resolution,
+            resolution=video_capture_resolution,
             capture_fps=capture_fps,
             # send every frame immediately after arrival
             # ignores put_fps
             put_downsample=False,
+            record_fps=capture_fps,
+            enable_color=True,
+            enable_depth=False,
+            enable_infrared=False,
             get_max_k=max_obs_buffer_size,
-            receive_latency=camera_obs_latency,
-            cap_buffer_size=cap_buffer_size,
             transform=transform,
             vis_transform=vis_transform,
+            recording_transform=recording_transfrom,
             video_recorder=video_recorder,
             verbose=False
         )
@@ -448,7 +384,7 @@ class BimanualUmiRsEnv:
                 #     print('ERROR!!!  ', camera_idx, len(this_timestamps), nn_idx, (this_timestamps - t)[nn_idx-1: nn_idx+2])
                 this_idxs.append(nn_idx)
             # remap key
-            camera_obs[f'camera{camera_idx}_rgb'] = value['color'][this_idxs]
+            camera_obs[f'camera_{camera_idx}'] = value['color'][this_idxs]
 
         # obs_data to return (it only includes camera data at this stage)
         obs_data = dict(camera_obs)
