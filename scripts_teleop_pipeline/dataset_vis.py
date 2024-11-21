@@ -10,6 +10,9 @@ from matplotlib.widgets import Slider, Button
 import hydra
 from omegaconf import OmegaConf
 
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__))+'/../')
 
 matplotlib.use('TkAgg')
 
@@ -100,16 +103,16 @@ class DatasetVisualizer:
         self.playing = False
 
     def prev(self, event):
-        if self.n_episode > 0:
-            self.n_episode -= 1
+        if self.episode_id > 0:
+            self.episode_id -= 1
             self.ax_slider.clear()
             self.load()
             self.update(0)
             self.fig.canvas.draw_idle()
 
     def next(self, event):
-        if self.n_episode < self.replay_buffer.n_episodes:
-            self.n_episode += 1
+        if self.episode_id < self.replay_buffer.n_episodes:
+            self.episode_id += 1
             self.ax_slider.clear()
             self.load()
             self.update(0)
@@ -128,7 +131,7 @@ class DatasetVisualizer:
         self.timestamps = np.arange(0,len(self.x), 1)
         self.width = ep['robot0_gripper_width']
         self.camera0 = ep['camera_0']
-        self.camera1 = ep['camera_1']
+        self.camera1 = ep['camera_0']
 
 
         self.ax1.set_xlim(min(self.x), max(self.x))
@@ -155,7 +158,7 @@ class DatasetVisualizer:
         plt.show()
 
 @click.command()
-@click.option('--path', default='../../../push_switch7')
+@click.option('--path', default='./')
 def main(path):
     replay_buffer = load_dataset(path)
     animator = DatasetVisualizer(replay_buffer)

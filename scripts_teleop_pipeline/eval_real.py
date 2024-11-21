@@ -302,22 +302,6 @@ def main(input, output, robot_config,
                     # visualize
                     episode_id = env.replay_buffer.n_episodes
                     vis_img = obs[f'camera_{match_camera}'][-1]
-                    # match_episode_id = episode_id
-                    # if match_episode is not None:
-                    #     match_episode_id = match_episode
-                    # if match_episode_id in episode_first_frame_map:
-                    #     match_img = episode_first_frame_map[match_episode_id]
-                    #     ih, iw, _ = match_img.shape
-                    #     oh, ow, _ = vis_img.shape
-                    #     tf = get_image_transform2(
-                    #         input_res=(iw, ih), 
-                    #         output_res=(ow, oh), 
-                    #         bgr_to_rgb=False)
-                    #     match_img = tf(match_img).astype(np.float32) / 255
-                    #     vis_img = (vis_img + match_img) / 2
-                    # obs_left_img = obs['camera1_rgb'][-1]
-                    # obs_right_img = obs['camera0_rgb'][-1]
-                    # vis_img = np.concatenate([obs_left_img, obs_right_img, vis_img], axis=1)
                     
                     text = f'Episode: {episode_id}'
                     cv2.putText(
@@ -413,17 +397,17 @@ def main(input, output, robot_config,
                         gripper_target_pos[robot_idx] = np.clip(gripper_target_pos[robot_idx] + dpos, 0, max_gripper_width)
 
                     # solve collision with table
-                    # for robot_idx in control_robot_idx_list:
-                    #     solve_table_collision(
-                    #         ee_pose=target_pose[robot_idx],
-                    #         gripper_width=gripper_target_pos[robot_idx],
-                    #         height_threshold=robots_config[robot_idx]['height_threshold'])
+                    for robot_idx in control_robot_idx_list:
+                        solve_table_collision(
+                            ee_pose=target_pose[robot_idx],
+                            gripper_width=gripper_target_pos[robot_idx],
+                            height_threshold=robots_config[robot_idx]['height_threshold'])
                     
                     # solve collison between two robots
-                    # solve_sphere_collision(
-                    #     ee_poses=target_pose,
-                    #     robots_config=robots_config
-                    # )
+                    solve_sphere_collision(
+                        ee_poses=target_pose,
+                        robots_config=robots_config
+                    )
 
                     action = np.zeros((7 * target_pose.shape[0],))
 
@@ -495,19 +479,19 @@ def main(input, output, robot_config,
                         # convert policy action to env actions
                         this_target_poses = action
                         assert this_target_poses.shape[1] == len(robots_config) * 7
-                        # for target_pose in this_target_poses:
-                        #     for robot_idx in range(len(robots_config)):
-                        #         solve_table_collision(
-                        #             ee_pose=target_pose[robot_idx * 7: robot_idx * 7 + 6],
-                        #             gripper_width=target_pose[robot_idx * 7 + 6],
-                        #             height_threshold=robots_config[robot_idx]['height_threshold']
-                        #         )
+                        for target_pose in this_target_poses:
+                            for robot_idx in range(len(robots_config)):
+                                solve_table_collision(
+                                    ee_pose=target_pose[robot_idx * 7: robot_idx * 7 + 6],
+                                    gripper_width=target_pose[robot_idx * 7 + 6],
+                                    height_threshold=robots_config[robot_idx]['height_threshold']
+                                )
                             
                         #     # solve collison between two robots
-                        #     solve_sphere_collision(
-                        #         ee_poses=target_pose.reshape([len(robots_config), -1]),
-                        #         robots_config=robots_config
-                        #     )
+                            solve_sphere_collision(
+                                ee_poses=target_pose.reshape([len(robots_config), -1]),
+                                robots_config=robots_config
+                            )
 
                         # deal with timing
                         # the same step actions are always the target for

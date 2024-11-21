@@ -21,13 +21,6 @@ shape_meta: &shape_meta
       down_sample_steps: ${task.obs_down_sample_steps} # int
       type: rgb
       ignore_by_policy: False
-    camera_2:
-      shape: [3, 224, 224]
-      horizon: ${task.img_obs_horizon} # int
-      latency_steps: 0 # float
-      down_sample_steps: ${task.obs_down_sample_steps} # int
-      type: rgb
-      ignore_by_policy: False
     robot0_eef_pos:
       shape: [3]
       horizon: ${task.low_dim_obs_horizon} # int
@@ -73,7 +66,6 @@ shape_meta: &shape_meta
     #   latency_steps: ${eval:'(${task.camera_obs_latency} - ${task.robot_obs_latency}) * ${task.dataset_frequeny}'} # float
     #   down_sample_steps: ${task.obs_down_sample_steps} # float
     #   type: low_dim
-    #   ignore_by_policy: ${task.ignore_proprioception}
     robot0_eef_rot_axis_angle_wrt_start:
       raw_shape: [3]
       shape: [6]
@@ -103,6 +95,7 @@ dataset:
   shape_meta: *shape_meta
   dataset_path: ${task.dataset_path}
   #cache_dir: null
+  use_cache: True
   pose_repr: *pose_repr
   action_padding: False
   temporally_independent_normalization: False
