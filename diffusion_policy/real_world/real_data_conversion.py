@@ -70,14 +70,34 @@ def real_data_to_replay_buffer(
         chunks_map[key] = value.shape
         compressor_map[key] = lowdim_compressor
 
+    filted_lowdim_keys = [key for key in lowdim_keys if key in in_replay_buffer.data]
+    print(filted_lowdim_keys)
     print('Loading lowdim data')
     out_replay_buffer = ReplayBuffer.copy_from_store(
         src_store=in_replay_buffer.root.store,
         store=out_store,
-        keys=lowdim_keys,
+        keys=filted_lowdim_keys,
         chunks=chunks_map,
         compressors=compressor_map
         )
+   
+    for key,value in in_replay_buffer.data.items():
+        if 'eef_pos' in key:
+            robot = key.split('_')[0]
+            rot = in_replay_buffer[robot+'_eef_rot_axis_angle']
+            start_pose = out_replay_buffer.data.require_dataset(
+                robot + '_demo_start_pose',
+                shape=(rot.shape[0], 6),
+                dtype=np.float32)
+            pose = np.hstack((value[0],rot[0]))
+            start_pose[:] = np.tile(pose, (rot.shape[0], 1))
+
+            end_pose = out_replay_buffer.data.require_dataset(
+                robot + '_demo_end_pose',
+                shape=(rot.shape[0], 6),
+                dtype=np.float32)
+            pose = np.hstack((value[-1],rot[-1]))
+            end_pose[:] =  np.tile(pose, (rot.shape[0], 1))
     
     # worker function
     def put_img(zarr_arr, zarr_idx, img):
@@ -107,7 +127,8 @@ def real_data_to_replay_buffer(
     episode_starts = in_replay_buffer.episode_ends[:] - in_replay_buffer.episode_lengths[:]
     episode_lengths = in_replay_buffer.episode_lengths
     timestamps = in_replay_buffer['timestamp'][:]
-    dt = timestamps[1] - timestamps[0]
+    #dt = timestamps[1] - timestamps[0]
+    dt = 1/30
 
     with tqdm(total=n_steps*n_cameras, desc="Loading image data", mininterval=1.0) as pbar:
         # one chunk per thread, therefore no synchronization needed

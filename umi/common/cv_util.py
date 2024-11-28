@@ -191,6 +191,44 @@ def detect_localize_aruco_tags(
         }
     return tag_dict
 
+
+def detect_localize_aruco_tags_d435(
+        img: np.ndarray,
+        aruco_dict: cv2.aruco.Dictionary,
+        marker_size_map: Dict[int, float],
+        refine_subpix: bool = True):
+    param = cv2.aruco.DetectorParameters()
+    if refine_subpix:
+        param.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX
+    corners, ids, rejectedImgPoints = cv2.aruco.detectMarkers(
+        image=img, dictionary=aruco_dict, parameters=param)
+    cv2.aruco.drawDetectedMarkers(img, corners)
+    if len(corners) == 0:
+        return dict()
+
+    camera_matrix = np.array([[909.57086, 0, 634.96716], [0, 910.003112, 347.91934], [0, 0, 1.0]], dtype=np.float32)
+    tag_dict = dict()
+    for this_id, this_corners in zip(ids, corners):
+        this_id = int(this_id[0])
+        if this_id not in marker_size_map:
+            continue
+
+        marker_size_m = marker_size_map[this_id]
+        rvec, tvec, markerPoints = cv2.aruco.estimatePoseSingleMarkers(
+            this_corners, marker_size_m, camera_matrix, np.zeros((1, 5)))
+        #print(f"estimatePoseSingleMarkers: rvec: {rvec}, tvec: {tvec}")
+        cv2.drawFrameAxes(img, camera_matrix, np.zeros((1, 5)), rvec, tvec, 0.01)
+        tag_dict[this_id] = {
+            'rvec': rvec.squeeze(),
+            'tvec': tvec.squeeze(),
+            'corners': this_corners.squeeze()
+        }
+        # cv2.imshow('test2', img)
+        # cv2.waitKey(0)
+        # cv2.destroyAllWindows()
+
+    return tag_dict
+
 def get_charuco_board(
         aruco_dict=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100), 
         tag_id_offset=50,
@@ -224,6 +262,7 @@ def get_gripper_width(tag_dict, left_id, right_id, nominal_z=0.072, z_tolerance=
     left_x = None
     if left_id in tag_dict:
         tvec = tag_dict[left_id]['tvec']
+        # print(f"zmax: {zmax}, zmin: {zmin}, ltvec: {tvec}")
         # check if depth is reasonable (to filter outliers)
         if zmin < tvec[-1] < zmax:
             left_x = tvec[0]
@@ -231,12 +270,14 @@ def get_gripper_width(tag_dict, left_id, right_id, nominal_z=0.072, z_tolerance=
     right_x = None
     if right_id in tag_dict:
         tvec = tag_dict[right_id]['tvec']
+        # print(f"zmax: {zmax}, zmin: {zmin}, rtvec: {tvec}")
         if zmin < tvec[-1] < zmax:
             right_x = tvec[0]
 
     width = None
     if (left_x is not None) and (right_x is not None):
         width = right_x - left_x
+        print(f"right_x: {right_x}, left_x: {left_x}, width: {width}")
     elif left_x is not None:
         width = abs(left_x) * 2
     elif right_x is not None:
@@ -437,3 +478,92 @@ def get_image_transform(in_res, out_res, crop_ratio:float = 1.0, bgr_to_rgb: boo
         return img
     
     return transform
+
+def get_image_transform2(in_res, out_res, crop_ratio:float = 1.0, bgr_to_rgb: bool=False):
+    iw, ih = in_res
+    ow, oh = out_res
+    interp_method = cv2.INTER_AREA
+    c_slice = slice(None)
+    if bgr_to_rgb:
+        c_slice = slice(None, None, -1)
+    def transform(img: np.ndarray):
+        assert img.shape == ((ih,iw,3))
+        # crop
+        src_h, src_w = img.shape[:2]
+        dst_h, dst_w = oh, ow
+
+        # 判断应该按哪个边做等比缩放
+        h = dst_w * (float(src_h) / src_w)  # 按照ｗ做等比缩放
+        w = dst_h * (float(src_w) / src_h)  # 按照h做等比缩放
+
+        h = int(h)
+        w = int(w)
+
+        if h <= dst_h:
+            image_dst = cv2.resize(img, (dst_w, int(h)))
+        else:
+            image_dst = cv2.resize(img, (int(w), dst_h))
+
+        h_, w_ = image_dst.shape[:2]
+        top = int((dst_h - h_) / 2)
+        down = int((dst_h - h_ + 1) / 2)
+        left = int((dst_w - w_) / 2)
+        right = int((dst_w - w_ + 1) / 2)
+
+        value = [0, 0, 0]
+        borderType = cv2.BORDER_CONSTANT
+        image_dst = cv2.copyMakeBorder(image_dst, top, down, left, right, borderType, None, value)
+        # resize
+        # img = cv2.resize(img, out_res, interpolation=interp_method)
+        image_dst = image_dst[:,:, c_slice]
+        return image_dst
+
+    return transform
+
+def get_gripper_canonical_polygon_rs():
+    left_pts = [
+        [2,122],
+        [13,148],
+        [32,138],
+        [50,137],
+        [71,144],
+        [70,162],
+        [93,167],
+        [112,166],
+        [112,176],
+        [2,176]
+    ]
+    resolution = [224, 224]
+    left_coords = pixel_coords_to_canonical(left_pts, resolution)
+    right_coords = left_coords.copy()
+    right_coords[:,0] *= -1
+    coords = np.stack([left_coords, right_coords])
+    return coords
+
+def draw_gripper_mask(img, color=(0, 0, 0), mirror=True, gripper=True, finger=True, use_aa=False):
+    all_coords = list()
+
+    if gripper:
+        all_coords.extend(get_gripper_canonical_polygon_rs())
+
+    for coords in all_coords:
+        pts = canonical_to_pixel_coords(coords, img.shape[:2])
+        pts = np.round(pts).astype(np.int32)
+        flag = cv2.LINE_AA if use_aa else cv2.LINE_8
+        cv2.fillPoly(img, [pts], color=color, lineType=flag)
+    return img
+def click_event(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        print(f"Clicked at: ({x}, {y})")
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        cv2.putText(img, f"({x}, {y})", (x, y), font, 0.5, (255, 0, 0), 2)
+        cv2.imshow('test', img)
+
+if __name__ == "__main__":
+    img = cv2.imread("../../resize.jpg")
+    # img = draw_gripper_mask(img, color=(0, 0, 0),
+    #      mirror=False, gripper=True, finger=False)
+    cv2.imshow("test", img)
+    cv2.setMouseCallback('test', click_event)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()

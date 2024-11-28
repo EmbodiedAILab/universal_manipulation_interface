@@ -1,0 +1,20 @@
+controller_list:
+  - name: fake_arm_controller
+    type: $(arg fake_execution_type)
+    joints:
+      - shoulder_pan_joint
+      - shoulder_lift_joint
+      - elbow_joint
+      - wrist_1_joint
+      - wrist_2_joint
+      - wrist_3_joint
+    # max_velocity_scaling_factor: 0.1
+    # max_acceleration_scaling_factor: 0.1
+  - name: fake_gripper_controller
+    type: $(arg fake_execution_type)
+    joints:
+      - left_finger_joint
+      - right_finger_joint
+initial:  # Define initial robot poses per group
+  - group: arm
+    pose: ready

@@ -7,7 +7,8 @@ import math
 from multiprocessing.managers import SharedMemoryManager
 from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
 from umi.real_world.wsg_controller import WSGController
-from umi.real_world.franka_interpolation_controller import FrankaInterpolationController
+from umi.real_world.dh_controller import DHController
+# from umi.real_world.franka_interpolation_controller import FrankaInterpolationController
 from umi.real_world.multi_uvc_camera import MultiUvcCamera, VideoRecorder
 from diffusion_policy.common.timestamp_accumulator import (
     TimestampActionAccumulator,
@@ -21,6 +22,7 @@ from diffusion_policy.common.cv2_util import (
 from umi.common.usb_util import reset_all_elgato_devices, get_sorted_v4l_paths
 from umi.common.pose_util import pose_to_pos_rot
 from umi.common.interpolation_util import get_interp1d, PoseInterpolator
+
 
 
 class BimanualUmiEnv:
@@ -201,7 +203,9 @@ class BimanualUmiEnv:
             )
 
         cube_diag = np.linalg.norm([1,1,1])
-        j_init = np.array([0,-90,-90,-90,90,0]) / 180 * np.pi
+        # j_init = np.array([175.99,-63.23,147.57,-223.03,-49.08,-37.95]) / 180 * np.pi
+        # j_init = np.array([191.73,-45.56,107.84,-215.72,-73.55,-18.10]) / 180 * np.pi  #for cup placement
+        j_init = np.array([30.65,-61.67,-131.53,-40.76,87.17,-3.04]) / 180 * np.pi  # for fold shirt
         if not init_joints:
             j_init = None
 
@@ -224,7 +228,7 @@ class BimanualUmiEnv:
                     payload_mass=None,
                     payload_cog=None,
                     joints_init=j_init,
-                    joints_init_speed=1.05,
+                    joints_init_speed=0.5,
                     soft_real_time=False,
                     verbose=False,
                     receive_keys=None,
@@ -245,14 +249,21 @@ class BimanualUmiEnv:
             robots.append(this_robot)
 
         for gc in grippers_config:
-            this_gripper = WSGController(
-                shm_manager=shm_manager,
-                hostname=gc['gripper_ip'],
-                port=gc['gripper_port'],
-                receive_latency=gc['gripper_obs_latency'],
-                use_meters=True
-            )
-
+            if gc['robot_type'].startswith('dh'):
+                this_gripper = DHController(
+                    shm_manager=shm_manager,
+                    port=gc['gripper_port'],
+                    receive_latency=gc['gripper_obs_latency'],
+                    use_meters=True
+                )
+            else:
+                this_gripper = WSGController(
+                    shm_manager=shm_manager,
+                    hostname=gc['gripper_ip'],
+                    port=gc['gripper_port'],
+                    receive_latency=gc['gripper_obs_latency'],
+                    use_meters=True
+                )
             grippers.append(this_gripper)
 
         self.camera = camera
@@ -508,6 +519,7 @@ class BimanualUmiEnv:
                     pose=r_actions,
                     target_time=new_timestamps[i] - r_latency
                 )
+                print('gripper waypoint: ', g_actions)
                 gripper.schedule_waypoint(
                     pos=g_actions,
                     target_time=new_timestamps[i] - g_latency
