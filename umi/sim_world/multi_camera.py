@@ -7,12 +7,12 @@ import numpy as np
 
 from umi.sim_world.single_camera import SingleCamera
 from diffusion_policy.real_world.video_recorder import VideoRecorder
-from diffusion_policy.real_world.gstreamer_recorder import GStreamerRecorder
 
 class MultiCameras:
     def __init__(self,
         serial_numbers: Optional[List[str]]=None,
         shm_manager: Optional[SharedMemoryManager]=None,
+        hostname='localhost',
         resolution=(1280,720),
         capture_fps=30,
         put_fps=None,
@@ -22,11 +22,11 @@ class MultiCameras:
         enable_depth=False,
         enable_infrared=False,
         get_max_k=30,
-        # advanced_mode_config: Optional[Union[dict, List[dict]]]=None,
+        advanced_mode_config: Optional[Union[dict, List[dict]]]=None,
         transform: Optional[Union[Callable[[Dict], Dict], List[Callable]]]=None,
         vis_transform: Optional[Union[Callable[[Dict], Dict], List[Callable]]]=None,
         recording_transform: Optional[Union[Callable[[Dict], Dict], List[Callable]]]=None,
-        video_recorder: Optional[Union[VideoRecorder, GStreamerRecorder, List[VideoRecorder], List[GStreamerRecorder]]]=None,
+        video_recorder: Optional[Union[VideoRecorder, List[VideoRecorder]]]=None,
         verbose=False
         ):
         if shm_manager is None:
@@ -46,12 +46,13 @@ class MultiCameras:
             recording_transform, n_cameras, Callable)
 
         video_recorder = repeat_to_list(
-            video_recorder, n_cameras, GStreamerRecorder)
+            video_recorder, n_cameras, VideoRecorder)
 
         cameras = dict()
         for i, serial in enumerate(serial_numbers):
             cameras[serial] = SingleCamera(
                 shm_manager=shm_manager,
+                hostname=hostname,
                 serial_number=serial,
                 resolution=resolution,
                 capture_fps=capture_fps,
@@ -156,43 +157,6 @@ class MultiCameras:
                 out[key] = np.stack([x[key] for x in results])
         return out
     
-    # realsense相机参数设置，暂不需要
-    # def set_color_option(self, option, value):
-    #     n_camera = len(self.cameras)
-    #     value = repeat_to_list(value, n_camera, numbers.Number)
-    #     for i, camera in enumerate(self.cameras.values()):
-    #         camera.set_color_option(option, value[i])
-
-    # def set_exposure(self, exposure=None, gain=None):
-    #     """
-    #     exposure: (1, 10000) 100us unit. (0.1 ms, 1/10000s)
-    #     gain: (0, 128)
-    #     """
-
-    #     if exposure is None and gain is None:
-    #         # auto exposure
-    #         self.set_color_option(rs.option.enable_auto_exposure, 1.0)
-    #     else:
-    #         # manual exposure
-    #         self.set_color_option(rs.option.enable_auto_exposure, 0.0)
-    #         if exposure is not None:
-    #             self.set_color_option(rs.option.exposure, exposure)
-    #         if gain is not None:
-    #             self.set_color_option(rs.option.gain, gain)
-    
-    # def set_white_balance(self, white_balance=None):
-    #     if white_balance is None:
-    #         self.set_color_option(rs.option.enable_auto_white_balance, 1.0)
-    #     else:
-    #         self.set_color_option(rs.option.enable_auto_white_balance, 0.0)
-    #         self.set_color_option(rs.option.white_balance, white_balance)
-    
-    # def get_intrinsics(self):
-    #     return np.array([c.get_intrinsics() for c in self.cameras.values()])
-    
-    # def get_depth_scale(self):
-    #     return np.array([c.get_depth_scale() for c in self.cameras.values()])
-    
     def start_recording(self, video_path: Union[str, List[str]], start_time: float):
         if isinstance(video_path, str):
             # directory
@@ -215,7 +179,6 @@ class MultiCameras:
     def restart_put(self, start_time):
         for camera in self.cameras.values():
             camera.restart_put(start_time)
-
 
 def repeat_to_list(x, n: int, cls):
     if x is None:

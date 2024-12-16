@@ -4,8 +4,8 @@
   "robots": [
     {
       "robot_type": "ur5e",
-      "robot_ip": "192.168.1.106",
-      "robot_obs_latency": 0.02, "robot_action_latency": 0.05, "tcp_offset": 0.235,
+      "robot_ip": "127.0.0.1",
+      "robot_obs_latency": 0.06, "robot_action_latency": 0.3, "tcp_offset": 0.235,
 
       # table height for finger-table collision avoidance
       # -inf to disable
@@ -21,12 +21,12 @@
   "grippers": [
     {
       "robot_type": "dh",
-      "gripper_ip": "192.168.1.106",
-      "gripper_port": "/dev/ttyUSBDH_", "gripper_obs_latency": 0.02, "gripper_action_latency": 0.05,
-      "max_width": 100.0,
+      "gripper_ip": "127.0.0.1",
+      "gripper_port": "/dev/ttyUSBDH_", "gripper_obs_latency": 0.01, "gripper_action_latency": 0.01,
+      "max_width": 0.08,
       "min_width": 0.0,
-      "grasp_threshold": 80,
-      "grasp_offset": 10
+      "grasp_threshold": 0.055,
+      "grasp_offset": 0.01
     },
   ],
 

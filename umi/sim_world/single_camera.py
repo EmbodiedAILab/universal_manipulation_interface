@@ -11,7 +11,6 @@ from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.shared_memory.shared_memory_queue import SharedMemoryQueue, Full, Empty
 from umi.sim_world.camera_receive_interface import CameraReceiver
 from diffusion_policy.real_world.video_recorder import VideoRecorder
-from diffusion_policy.real_world.gstreamer_recorder import GStreamerRecorder
 
 import threading
 
@@ -36,7 +35,7 @@ class SingleCamera(mp.Process):
             # or /dev/v4l/by-id/usb-Elgato_Elgato_HD60_X_A00XB320216MTR-video-index0
             # dev_video_path,
             serial_number,
-            # camera_receiver: CameraReceiver,
+            hostname='localhost',
             resolution=(1280, 720),
             capture_fps=30,
             put_fps=None,
@@ -48,7 +47,7 @@ class SingleCamera(mp.Process):
             transform: Optional[Callable[[Dict], Dict]] = None,
             vis_transform: Optional[Callable[[Dict], Dict]] = None,
             recording_transform: Optional[Callable[[Dict], Dict]] = None,
-            video_recorder: Optional[Union[VideoRecorder,GStreamerRecorder]] = None,
+            video_recorder: Optional[Union[VideoRecorder]] = None,
             verbose=False
         ):
         super().__init__()
@@ -115,14 +114,10 @@ class SingleCamera(mp.Process):
                 crf=18,
                 thread_type='FRAME',
                 thread_count=1)
-        
-        # self.camera_receiver = CameraReceiver()
-        # self.receive_thread = threading.Thread(target=self.camera_receiver.receive_images)
-        # self.receive_thread.daemon = True
-        # self.receive_thread.start()
 
         self.serial_number = serial_number
         self.shm_manager = shm_manager
+        self.hostname = hostname
         self.resolution = resolution
         self.capture_fps = capture_fps
         self.put_fps = put_fps
@@ -142,6 +137,9 @@ class SingleCamera(mp.Process):
         self.ring_buffer = ring_buffer
         self.vis_ring_buffer = vis_ring_buffer
         self.command_queue = command_queue
+
+        self.camera_receriver = CameraReceiver(shm_manager=shm_manager, zmq_host=self.hostname)
+        self.last_frame_time = 0.0
         
     @staticmethod
     def get_connected_devices_serial():
@@ -159,12 +157,14 @@ class SingleCamera(mp.Process):
 
     # ========= user API ===========
     def start(self, wait=True, put_start_time=None):
+        self.camera_receriver.start()
         self.put_start_time = put_start_time
         super().start()
         if wait:
             self.start_wait()
     
     def stop(self, wait=True):
+        self.camera_receriver.stop()
         # self.video_recorder.stop()
         self.stop_event.set()
         if wait:
@@ -213,111 +213,94 @@ class SingleCamera(mp.Process):
         })
 
     # ========= interval API ===========
-    def run(self):
-        threadpool_limits(1)
-        cv2.setNumThreads(1)
-
+def run(self):
         put_idx = None
         put_start_time = self.put_start_time
         if put_start_time is None:
             put_start_time = time.time()
 
-        camera_receiver = CameraReceiver()
-        def f(img):
-            self.handle_img(img, put_start_time)
-        receive_thread = threading.Thread(target=camera_receiver.receive_images, args=(f,))
-        receive_thread.daemon = True
-        receive_thread.start()
-
+        # reuse frame buffer
         iter_idx = 0
         t_start = time.time()
-        prev_time = t_start
+
         while not self.stop_event.is_set():
-            #ts = time.time()
-            #self.wait_for_valid_data(camera_receiver)
-            #frame_data = camera_receiver.get(k=1)
-            #assert frame_data is not None
+            ts = time.time()
+            frame_data = self.camera_receiver.get_image(k=1)
+            if frame_data == {} or frame_data[0]['timestamp'][0] == self.last_frame_time:
+                continue
+            self.last_frame_time = frame_data[0]['timestamp'][0]
 
-            #frame = frame_data[0]['rgb'][0]
-            #t_recv = time.time()
-            #print(f"recv fps: {1/(t_recv-prev_time)}, duration: {t_recv-prev_time}")
-            #prev_time = t_recv
-            ## t_cap = frame_data[0]['timestamp'][0] / 1000.0  # assuming timestamp is in milliseconds
-            ## 此处根据sim2sim进行时间单位对齐，timestamp / 1e6
-            #t_cap = frame_data[0]['timestamp'][0] / 1000000.0
-            #t_cal = t_recv - self.receive_latency  # calibrated latency
-
-            #data = dict()
-            #data['camera_receive_timestamp'] = t_recv
-            #data['camera_capture_timestamp'] = t_cap
-            #data['color'] = frame
-            #
-            ## apply transform
-            #print(f'camera_receive_timestamp: {t_recv}, camera_capture_timestamp: {t_cap}')
-            #put_data = data
-            #if self.transform is not None:
-            #    put_data = self.transform(dict(data))
-
-            #if self.put_downsample:                
-            #    # put frequency regulation
-            #    local_idxs, global_idxs, put_idx \
-            #        = get_accumulate_timestamp_idxs(
-            #            timestamps=[t_cal],
-            #            start_time=put_start_time,
-            #            dt=1/self.put_fps,
-            #            # this is non in first iteration
-            #            # and then replaced with a concrete number
-            #            next_global_idx=put_idx,
-            #            # continue to pump frames even if not started.
-            #            # start_time is simply used to align timestamps.
-            #            allow_negative=True
-            #        )
-
-            #    for step_idx in global_idxs:
-            #        put_data['step_idx'] = step_idx
-            #        put_data['timestamp'] = t_cal
-            #        self.ring_buffer.put(put_data, wait=False) # TODO 源代码为False, 改为True写入频率过快
-            #else:
-            #    step_idx = int((t_cal - put_start_time) * self.put_fps)
-            #    # print(f'step_idx: {step_idx}, t_cal: {t_cal}')
-#
-            #    put_data['step_idx'] = step_idx
-            #    put_data['timestamp'] = t_cal
-            #    self.ring_buffer.put(put_data, wait=False) # TODO 源代码为False, 改为True写入频率过快
-#
-            #t1= time.time()-t_recv
-            ## signal ready
-            if iter_idx == 0:
-               self.ready_event.set()
-               
-            ## put to vis
-            #vis_data = data
-            #if self.vis_transform == self.transform:
-            #    vis_data = put_data
-            #elif self.vis_transform is not None:
-            #    vis_data = self.vis_transform(dict(data))
-            #self.vis_ring_buffer.put(vis_data, wait=False) # TODO 源代码为False, 改为True写入频率过快
-#
-            #t2= time.time()-t_recv -t1
-            ## record frame
-            #rec_data = data
-            #if self.recording_transform == self.transform:
-            #    rec_data = put_data
-            #elif self.recording_transform is not None:
-            #    rec_data = self.recording_transform(dict(data))
-            #if self.video_recorder.is_ready():
-            #    self.video_recorder.write_frame(rec_data['color'], 
-            #        frame_time=t_recv)
-            #    print(f"put: {t1}, put_vis: {t2}, write frame : {time.time()-t_recv -t1- t2}")
+            # print("single camera, received images:", frame_data)
+            assert frame_data is not None
             
+            frame = frame_data[0]['rgb'][0]
+            t_recv = time.time()
+            t_cap = frame_data[0]['timestamp'][0] / 1000000.0  # assuming timestamp is in milliseconds
+            t_cal = t_recv - self.receive_latency  # calibrated latency
+            # print('frame: ', frame_data[0]['rgb'][0])
+            # print('==== t_recv 接收时时间：', t_recv)
+            # print('==== t_cap 捕获时时间计算前：', frame_data[0]['timestamp'][0])
+            # print('==== t_cap 捕获时时间：', t_cap)
+            # print('==== t_cal 校准后时间：', t_cal)
+
+            data = dict()
+            data['camera_receive_timestamp'] = t_recv
+            data['camera_capture_timestamp'] = t_cap
+            data['color'] = frame
+            
+            # apply transform
+            put_data = data
+            if self.transform is not None:
+                put_data = self.transform(dict(data))
+
+            if self.put_downsample:                
+                # put frequency regulation
+                local_idxs, global_idxs, put_idx \
+                    = get_accumulate_timestamp_idxs(
+                        timestamps=[t_cal],
+                        start_time=put_start_time,
+                        dt=1/self.put_fps,
+                        # this is non in first iteration
+                        # and then replaced with a concrete number
+                        next_global_idx=put_idx,
+                        # continue to pump frames even if not started.
+                        # start_time is simply used to align timestamps.
+                        allow_negative=True
+                    )
+
+                for step_idx in global_idxs:
+                    put_data['step_idx'] = step_idx
+                    put_data['timestamp'] = t_cal
+                    self.ring_buffer.put(put_data, wait=True)
+            else:
+                step_idx = int((t_cal - put_start_time) * self.put_fps)
+                put_data['step_idx'] = step_idx
+                put_data['timestamp'] = t_cal
+                self.ring_buffer.put(put_data, wait=True)
+            # print('[single camera] put_data: ', put_data)
+
+            # signal ready
+            if iter_idx == 0 and put_data != {}:
+                self.ready_event.set()
+                
+            # put to vis
+            vis_data = data
+            try:
+                if self.vis_transform == self.transform:
+                    vis_data = put_data
+                elif self.vis_transform is not None:
+                    vis_data = self.vis_transform(dict(data))
+            except Exception as e:
+                print(f"[Error] Exception occurred during vis_transform: {e}")
+            self.vis_ring_buffer.put(vis_data, wait=True)
 
             # perf
-            #t_end = time.time()
-            #duration = t_end - t_start
-            #frequency = np.round(1 / duration, 1)
-            #t_start = t_end
-            #if self.verbose:
-            #    print(f'[UvcCamera] FPS {frequency}')
+            t_end = time.time()
+            duration = t_end - t_start
+            frequency = np.round(1 / duration, 1)
+            t_start = t_end
+            if self.verbose:
+                print(f'[UvcCamera] FPS {frequency}')
 
 
             # fetch command from queue
@@ -337,102 +320,9 @@ class SingleCamera(mp.Process):
                     put_idx = None
                     put_start_time = command['put_start_time']
                 elif cmd == Command.START_RECORDING.value:
-                    video_path = str(command['video_path'])
-                    start_time = command['recording_start_time']
-                    if start_time < 0:
-                        start_time = None
-                    print('start record')
-                    self.video_recorder.start(video_path, start_time=start_time)
+                    print('fake start recording')
                 elif cmd == Command.STOP_RECORDING.value:
-                    self.video_recorder.stop()
-                    # stop need to flush all in-flight frames to disk, which might take longer than dt.
-                    # soft-reset put to drop frames to prevent ring buffer overflow.
-                    put_idx = None
-                    print('stop record')
+                    print('fake stop recording')
 
             iter_idx += 1
-    
-    def handle_img(self, frame_data, put_start_time):
-        frame = frame_data['rgb']
-        t_recv = time.time()
-        # print(f"recv fps: {1/(t_recv-prev_time)}, duration: {t_recv-prev_time}")
-        #prev_time = t_recv
-        # t_cap = frame_data[0]['timestamp'][0] / 1000.0  # assuming timestamp is in milliseconds
-        # 此处根据sim2sim进行时间单位对齐，timestamp / 1e6
-        t_cap = frame_data['timestamp']
-        t_cal = t_recv - self.receive_latency  # calibrated latency
-        data = dict()
-        data['camera_receive_timestamp'] = t_recv
-        data['camera_capture_timestamp'] = t_cap
-        data['color'] = frame
-        
-        # apply transform
-        #print(f'camera_receive_timestamp: {t_recv}, camera_capture_timestamp: {t_cap}')
-        put_data = data
-        if self.transform is not None:
-            put_data = self.transform(dict(data))
-        if self.put_downsample:                
-            # put frequency regulation
-            local_idxs, global_idxs, put_idx \
-                = get_accumulate_timestamp_idxs(
-                    timestamps=[t_cal],
-                    start_time=put_start_time,
-                    dt=1/self.put_fps,
-                    # this is non in first iteration
-                    # and then replaced with a concrete number
-                    next_global_idx=put_idx,
-                    # continue to pump frames even if not started.
-                    # start_time is simply used to align timestamps.
-                    allow_negative=True
-                )
-            for step_idx in global_idxs:
-                put_data['step_idx'] = step_idx
-                put_data['timestamp'] = t_cal
-                self.ring_buffer.put(put_data, wait=True)# TODO 源代码为False, 改为True写入频率过快
-        else:
-            t0= time.time()
-            step_idx = int((t_cal - put_start_time) * self.put_fps)
-            put_data['step_idx'] = step_idx
-            put_data['timestamp'] = t_cal
-            self.ring_buffer.put(put_data, wait=True) # TODO 源代码为False, 改为True写入频率过快
-            
-        t1= time.time()-t_recv
-            
-        # put to vis
-        vis_data = data
-        if self.vis_transform == self.transform:
-            vis_data = put_data
-        elif self.vis_transform is not None:
-            vis_data = self.vis_transform(dict(data))
-        self.vis_ring_buffer.put(vis_data, wait=True) # TODO 源代码为False, 改为True写入频率过快
-        t2= time.time()-t_recv -t1
-        # record frame
-        rec_data = data
-        if self.recording_transform == self.transform:
-            rec_data = put_data
-        elif self.recording_transform is not None:
-            rec_data = self.recording_transform(dict(data))
-        if self.video_recorder.is_ready() and not self.stop_event.is_set():
-            self.video_recorder.write_frame(rec_data['color'], 
-                frame_time=t_recv)
-        print(f"put0:{t1-t0+t_recv}, put: {t1}, put_vis: {t2}, write frame : {time.time()-t_recv -t1- t2}")
-        # t_end = time.time()
-        # duration = t_end - t_start
-        # frequency = np.round(1 / duration, 1)
-        # t_start = t_end
-        # if self.verbose:
-            # print(f'[UvcCamera] FPS {frequency}')
-
-    def wait_for_valid_data(self, camera_receiver, timeout=5, check_interval=0.1):
-        start_time = time.time()
-        while True:
-            frame_data = camera_receiver.get(k=1)
-            
-            if frame_data:
-                return True
-            
-            if time.time() - start_time > timeout:
-                raise TimeoutError("wait timeout, check zmq data")
-            
-            time.sleep(check_interval)
 

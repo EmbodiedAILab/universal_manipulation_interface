@@ -41,18 +41,9 @@ import json
 import inspect
 
 # get workspace path
-current_file_path = inspect.getfile(lambda: None)
-absolute_path = os.path.abspath(current_file_path)
-ROOT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(absolute_path)))
-print(ROOT_DIR)
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__)+'/../../')
 sys.path.append(ROOT_DIR)
 os.chdir(ROOT_DIR)
-
-
-if os.path.exists(ROOT_DIR):
-    os.chdir(ROOT_DIR)
-else:
-    print(f"Directory does not exist: {ROOT_DIR}")
 
 from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.common.cv2_util import (
@@ -69,8 +60,7 @@ from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from umi.common.precise_sleep import precise_wait
 
-# from umi.real_world.bimanual_umi_rs_env import BimanualUmiRsEnv
-from umi.sim_world.bimanual_umi_sim_env import BimanualUmiSimEnv
+from umi.sim_world.bimanual_r1_env import BimanualR1Env
 
 from umi.real_world.keystroke_counter import (
     KeystrokeCounter, Key, KeyCode
@@ -79,7 +69,7 @@ from umi.real_world.real_inference_util import (get_real_obs_dict,
                                                 get_real_obs_resolution,
                                                 get_real_umi_obs_dict,
                                                 get_real_umi_action)
-from umi.real_world.spacemouse_shared_memory import Spacemouse
+# from umi.real_world.spacemouse_shared_memory import Spacemouse
 from umi.common.pose_util import pose_to_mat, mat_to_pose
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
@@ -153,9 +143,8 @@ def main(input, output, robot_config,
     steps_per_inference, max_duration,
     frequency, command_latency, 
     no_mirror, sim_fov, camera_intrinsics, mirror_swap):
-    max_gripper_width = 0.08
-    gripper_speed = 0.2
-    
+
+    np.set_printoptions(precision=10)
     # load robot config file
     robot_config_data = yaml.safe_load(open(os.path.expanduser(robot_config), 'r'))
     
@@ -165,6 +154,7 @@ def main(input, output, robot_config,
     
     robots_config = robot_config_data['robots']
     grippers_config = robot_config_data['grippers']
+    cameras_config = robot_config_data['cameras']
 
     # load checkpoint
     ckpt_path = input
@@ -193,12 +183,12 @@ def main(input, output, robot_config,
 
     print("steps_per_inference:", steps_per_inference)
     with SharedMemoryManager() as shm_manager:
-        with Spacemouse(shm_manager=shm_manager) as sm, \
-            KeystrokeCounter() as key_counter, \
-            BimanualUmiSimEnv(
+        with KeystrokeCounter() as key_counter, \
+            BimanualR1Env(
                 output_dir=output,
                 robots_config=robots_config,
                 grippers_config=grippers_config,
+                cameras_config=cameras_config,
                 frequency=frequency,
                 obs_image_resolution=(1280,720),
                 obs_float32=True,
@@ -208,9 +198,9 @@ def main(input, output, robot_config,
                 # latency
                 camera_obs_latency=0.125,
                 # obs
-                # camera_obs_horizon=cfg.task.shape_meta.obs.camera_0.horizon,
-                # robot_obs_horizon=cfg.task.shape_meta.obs.robot0_eef_pos.horizon,
-                # gripper_obs_horizon=cfg.task.shape_meta.obs.robot0_gripper_width.horizon,
+                camera_obs_horizon=cfg.task.shape_meta.obs.camera_0.horizon,
+                robot_obs_horizon=cfg.task.shape_meta.obs.robot0_eef_pos.horizon,
+                gripper_obs_horizon=cfg.task.shape_meta.obs.robot0_gripper_width.horizon,
                 no_mirror=no_mirror,
                 fisheye_converter=fisheye_converter,
                 mirror_swap=mirror_swap,
@@ -250,7 +240,9 @@ def main(input, output, robot_config,
             cls = hydra.utils.get_class(cfg._target_)
             workspace = cls(cfg)
             workspace: BaseWorkspace
+            print('cls ')
             workspace.load_payload(payload, exclude_keys=None, include_keys=None)
+            print('loaded')
 
             policy = workspace.model
             if cfg.training.use_ema:
@@ -281,6 +273,8 @@ def main(input, output, robot_config,
                     obs_pose_repr=obs_pose_rep,
                     tx_robot1_robot0=tx_robot1_robot0,
                     episode_start_pose=episode_start_pose)
+                for key,value in obs_dict_np.items():
+                    print(f'key: {key}, value: {value.shape}')
                 obs_dict = dict_apply(obs_dict_np, 
                     lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
                 result = policy.predict_action(obs_dict)
@@ -295,24 +289,50 @@ def main(input, output, robot_config,
                 # ========= human control loop ==========
                 print("Human in control!")
                 robot_states = env.get_robot_state()
-                target_pose = np.stack([rs['TargetTCPPose'] for rs in robot_states])
+                # target_pose = np.stack([rs['TargetTCPPose'] for rs in robot_states])
 
                 gripper_states = env.get_gripper_state()
-                gripper_target_pos = np.asarray([gs['gripper_position'] for gs in gripper_states])
+                # gripper_target_pos = np.asarray([gs['gripper_position'] for gs in gripper_states])
                 
                 control_robot_idx_list = [0]
 
                 t_start = time.monotonic()
                 iter_idx = 0
                 while True:
-                    # calculate timing
                     t_cycle_end = t_start + (iter_idx + 1) * dt
                     t_sample = t_cycle_end - command_latency
                     t_command_target = t_cycle_end + dt
 
                     # pump obs
                     obs = env.get_obs()
-                    
+
+                    # visualize
+                    episode_id = env.replay_buffer.n_episodes
+                    vis_img = obs[f'camera_{match_camera}'][-1]
+
+                    text = f'Episode: {episode_id}'
+                    cv2.putText(
+                        vis_img,
+                        text,
+                        (10,20),
+                        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                        fontScale=0.5,
+                        lineType=cv2.LINE_AA,
+                        thickness=3,
+                        color=(0,0,0)
+                    )
+                    cv2.putText(
+                        vis_img,
+                        text,
+                        (10,20),
+                        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                        fontScale=0.5,
+                        thickness=1,
+                        color=(255,255,255)
+                    )
+                    cv2.imshow('default', vis_img[...,::-1])
+                    _ = cv2.pollKey()
+
                     press_events = key_counter.get_press_events()
                     start_policy = False
                     for key_stroke in press_events:
@@ -327,56 +347,8 @@ def main(input, output, robot_config,
 
                     if start_policy:
                         break
-                    
+
                     precise_wait(t_sample)
-                    # get teleop command
-                    sm_state = sm.get_motion_state_transformed()
-                    # print(sm_state)
-                    dpos = sm_state[:3] * (0.2 / frequency)
-                    drot_xyz = sm_state[3:] * (1.5 / frequency)
-
-                    drot = st.Rotation.from_euler('xyz', drot_xyz)
-                    for robot_idx in control_robot_idx_list:
-                        target_pose[robot_idx, :3] += dpos
-                        target_pose[robot_idx, 3:] = (drot * st.Rotation.from_rotvec(
-                            target_pose[robot_idx, 3:])).as_rotvec()
-
-                    dpos = 0
-                    if sm.is_button_pressed(0):
-                        # close gripper
-                        dpos = -gripper_speed / frequency
-                    if sm.is_button_pressed(1):
-                        dpos = gripper_speed / frequency
-                    for robot_idx in control_robot_idx_list:
-                        gripper_target_pos[robot_idx] = np.clip(gripper_target_pos[robot_idx] + dpos, 0, max_gripper_width)
-
-                    # solve collision with table
-                    # for robot_idx in control_robot_idx_list:
-                    #     solve_table_collision(
-                    #         ee_pose=target_pose[robot_idx],
-                    #         gripper_width=gripper_target_pos[robot_idx],
-                    #         height_threshold=robots_config[robot_idx]['height_threshold'])
-                    
-                    # solve collison between two robots
-                    # solve_sphere_collision(
-                    #     ee_poses=target_pose,
-                    #     robots_config=robots_config
-                    # )
-
-                    action = np.zeros((7 * target_pose.shape[0],))
-
-                    for robot_idx in range(target_pose.shape[0]):
-                        action[7 * robot_idx + 0: 7 * robot_idx + 6] = target_pose[robot_idx]
-                        action[7 * robot_idx + 6] = gripper_target_pos[robot_idx]
-
-
-                    # execute teleop command
-                    env.exec_actions(
-                        actions=[action], 
-                        timestamps=[t_command_target-time.monotonic()+time.time()],
-                        compensate_latency=False)
-                    precise_wait(t_cycle_end)
-                    iter_idx += 1
                 
                 # ========== policy control loop ==============
                 try:
@@ -385,7 +357,7 @@ def main(input, output, robot_config,
                     start_delay = 1.0
                     eval_t_start = time.time() + start_delay
                     t_start = time.monotonic() + start_delay
-                    # env.start_episode(eval_t_start)
+                    env.start_episode(eval_t_start)
 
                     # get current pose
                     obs = env.get_obs()
@@ -412,8 +384,6 @@ def main(input, output, robot_config,
                         obs = env.get_obs()
                         obs_timestamps = obs['timestamp']
                         print(f'Obs latency {time.time() - obs_timestamps[-1]}')
-                        w=obs['robot0_gripper_width']
-                        print(f'gripper width: {w}')
 
                         # run inference
                         with torch.no_grad():
@@ -423,11 +393,14 @@ def main(input, output, robot_config,
                                 obs_pose_repr=obs_pose_rep,
                                 tx_robot1_robot0=tx_robot1_robot0,
                                 episode_start_pose=episode_start_pose)
+                            t2 = time.time()
                             obs_dict = dict_apply(obs_dict_np, 
                                 lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
                             result = policy.predict_action(obs_dict)
+                            t3 = time.time()
                             raw_action = result['action_pred'][0].detach().to('cpu').numpy()
                             action = get_real_umi_action(raw_action, obs, action_pose_repr)
+                            print(f'get real:{t2-s }, predict: {t3 - t2}')
                             print('Inference latency:', time.time() - s)
                         
                         # convert policy action to env actions
@@ -465,7 +438,7 @@ def main(input, output, robot_config,
                         else:
                             this_target_poses = this_target_poses[is_new]
                             action_timestamps = action_timestamps[is_new]
-
+                        #print(f'Action timestamps: {action_timestamps}, obs_timestamps: {obs_timestamps}')
                         # execute actions
                         env.exec_actions(
                             actions=this_target_poses,
@@ -475,21 +448,21 @@ def main(input, output, robot_config,
                         print(f"Submitted {len(this_target_poses)} steps of actions.")
 
                         # visualize
-                        # vis_img = obs[f'camera_{vis_camera_idx}'][-1,:,:,::-1].copy()
-                        # episode_id = env.replay_buffer.n_episodes
-                        # text = f'Episode: {episode_id}, Recording!'
-                        # cv2.putText(
-                        #     vis_img,
-                        #     text,
-                        #     (10,30),
-                        #     fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                        #     fontScale=1,
-                        #     thickness=2,
-                        #     color=(255,255,255)
-                        # )
+                        vis_img = obs[f'camera_{vis_camera_idx}'][-1,:,:,::-1].copy()
+                        episode_id = env.replay_buffer.n_episodes
+                        text = f'Episode: {episode_id}, Recording!'
+                        cv2.putText(
+                            vis_img,
+                            text,
+                            (10,30),
+                            fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+                            fontScale=1,
+                            thickness=2,
+                            color=(255,255,255)
+                        )
 
-                        # cv2.imshow('default', vis_img)
-                        # cv2.pollKey()
+                        cv2.imshow('default', vis_img)
+                        cv2.pollKey()
 
                         press_events = key_counter.get_press_events()
                         stop_episode = False
@@ -505,7 +478,7 @@ def main(input, output, robot_config,
                             print("Max Duration reached.")
                             stop_episode = True
                         if stop_episode:
-                            # env.end_episode()
+                            env.end_episode()
                             break
 
                         # wait for execution
