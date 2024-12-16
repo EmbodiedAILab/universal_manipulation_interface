@@ -16,7 +16,6 @@ from umi.shared_memory.shared_memory_queue import (
     SharedMemoryQueue, Empty)
 from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 
-HOST = "192.168.1.200"
 
 class Command(enum.Enum):
     SHUTDOWN = 0
@@ -35,7 +34,7 @@ class ZmqSubcriber(mp.Process):
     def __init__(self, 
             shm_manager: SharedMemoryManager,
             frequency=60,
-            zmq_host=HOST, 
+            zmq_host='localhost', 
             zmq_port=5555,
             get_max_k=None,
             ):
@@ -150,15 +149,6 @@ class ZmqSubcriber(mp.Process):
         self.stop()
 
     # ========= receive APIs =============
-    # def get_state(self, k=None, out=None):
-    #     if k is None:
-    #         return self.ring_buffer.get(out=out)
-    #     else:
-    #         return self.ring_buffer.get_last_k(k=k,out=out)
-    
-    # def get_all_state(self):
-    #     return self.ring_buffer.get_all()
-
     def get_eef_state(self, k=None, out=None):
         if k is None:
             return self.ring_buffer_eef.get(out=out)
@@ -179,8 +169,7 @@ class ZmqSubcriber(mp.Process):
     
     # ========= main loop in process ============
 
-    def run(self):
-        
+    def run(self):   
         socket,zmq_context = self.create_socket(self.zmq_host, self.zmq_port)
         if socket is None:
             print("Failed to create socket")
@@ -191,8 +180,6 @@ class ZmqSubcriber(mp.Process):
         while keep_running:
             try:
                 message = socket.recv_multipart(flags=zmq.NOBLOCK)
-                # print(f'is running {self.is_running}')
-                # message = socket.recv_multipart()
                 if len(message) != 2:
                     continue
 
@@ -202,16 +189,6 @@ class ZmqSubcriber(mp.Process):
 
                 with open('recieve_data.txt', 'a') as f:
                     print(f"data: {topic}, {data}, recieve_time:{data['timestamp']}, latency: {int(time.time() * 1e6) - data['timestamp']}", file=f)
-
-                # if topic == "joint_states" and isinstance(data, dict):
-                #     print(topic, data)
-                # from umi.shared_memory.shared_memory_queue import (
-                #     # joint_states = dict()
-                #     # joint_states['ActualQ'] = self.arm_joint_positions
-                #     # self.ring_buffer.put(joint_states)
-                #     # print('[joint] send time: {}, receive time: {}, latency: {}'.format(
-                #     #     data['timestamp'], int(time.time() * 1e6), int(time.time() * 1e6) - data['timestamp']
-                #     # ))
 
                 if topic == "eef_pose" and isinstance(data, dict):
                     self.eef_pose = data
@@ -226,19 +203,6 @@ class ZmqSubcriber(mp.Process):
                     if not exist_eef_pose:
                         exist_eef_pose=True
                         print('eef_pose exist')
-                    # self.update_current_state()
-
-                    # if self.eef_pose is None or self.cached_axis_angle is None:
-                    #     continue
-
-                    # position = self.eef_pose['position']
-                    # print('[TCPPose] send time: {}, receive time: {}, latency: {}'.format(
-                    #         self.eef_pose['timestamp'], int(time.time() * 1e6), int(time.time() * 1e6) - self.eef_pose['timestamp']
-                    #     ))
-                    # pose = dict()
-                    # pose['ActualTCPPose'] = [position['x'], position['y'], position['z']] + self.cached_axis_angle
-                    # selumi/sim_world/ros_receive_interface.pyf.ring_buffer.put(pose)
-
                 elif topic == "gripper_width" and isinstance(data, dict):
                     self.gripper_width = data['width']
                     gripper_states = dict()
@@ -249,16 +213,6 @@ class ZmqSubcriber(mp.Process):
                     if not exist_gripper_width:
                         exist_gripper_width=True
                         print('gripper_width exist')
-                    # self.update_current_state()
-                    # print('[gripper] send time: {}, receive time: {}, latency: {}'.format(
-                    #     data['timestamp'], int(time.time() * 1e6), int(time.time() * 1e6) - data['timestamp']
-                    # ))
-                    # gripper_states = dict()
-                    # gripper_states['GripperCurrentPos'] = self.gripper_width
-                    # self.ring_buffer.put(gripper_states)
-                    
-                # if len(self.arm_joint_positions) >= 0 and len(self.eef_pose) >= 0 and self.gripper_width >= 0:
-                #     self.update_current_state()
                 if not self.ready_event.is_set() and not exist_eef_pose and not exist_gripper_width:
                     self.ready_event.set()
                     print("ready event set")
@@ -290,17 +244,10 @@ class ZmqSubcriber(mp.Process):
         socket.close()
         zmq_context.term()
 
-    # def update_current_state(self):
-    #     current_state = dict()
-    #     current_state['ActualQ'] = self.arm_joint_positions
-    #     current_state['ActualTCPPose'] = [self.eef_pose['position']['x'], self.eef_pose['position']['y'], self.eef_pose['position']['z']] + self.cached_axis_angle
-    #     current_state['GripperCurrentPos'] = self.gripper_width
-    #     self.ring_buffer.put(current_state)
-
     def create_socket(self, zmq_host, zmq_port):
         zmq_context = zmq.Context()
         socket = zmq_context.socket(zmq.SUB)
-        socket.setsockopt(zmq.RCVHWM, 10000)  # 限制接收队列最多只保存1条消息
+        socket.setsockopt(zmq.RCVHWM, 10000)
         socket.connect(f"tcp://{zmq_host}:{zmq_port}")
         print("ros receive socket connected")
 
@@ -320,39 +267,11 @@ class ZmqSubcriber(mp.Process):
         rz = qz / sin_theta_over_two
         return [rx * angle, ry * angle, rz * angle]
 
-    # ================= Arm Status API ===================
-    # def getActualTCPPose(self):
-    #     """获取当前 TCP 位姿"""
-    #     if self.eef_pose is None or self.cached_axis_angle is None:
-    #         return []
-    #     position = self.eef_pose['position']
-    #     # print('[TCPPose] send time: {}, receive time: {}, latency: {}'.format(
-    #     #         self.eef_pose['timestamp'], int(time.time() * 1e6), int(time.time() * 1e6) - self.eef_pose['timestamp']
-    #     #     ))
-    #     pose = dict()
-    #     pose['ActualTCPPose'] = [position['x'], position['y'], position['z']] + self.cached_axis_angle
-    #     self.ring_buffer.put(pose)
-    #     return [position['x'], position['y'], position['z']] + self.cached_axis_angle
-
-    # def getActualQ(self):
-    #     """获取当前关节状态"""
-    #     return self.arm_joint_positions if self.arm_joint_positions else []
-
-    # # ================= Gripper Status API ===================
-    # def getGripperCurrentPos(self):
-    #     """获取当前夹爪宽度"""
-    #     return self.gripper_width if self.gripper_width is not None else 0.0
-    
-    # def cleanup(self):
-    #     self.socket.close()
-    #     self.zmq_context.term()
-
-
 if __name__ == "__main__":
-    # zmq_host = "localhost"
+    zmq_host = "localhost"
     zmq_port = 5555
     with SharedMemoryManager() as shm_manager:
-        zmq_receiver = ZmqSubcriber(shm_manager, zmq_host=HOST, zmq_port=zmq_port)
+        zmq_receiver = ZmqSubcriber(shm_manager, zmq_host=zmq_host, zmq_port=zmq_port)
         zmq_receiver.start()
         # try:
         #     while True:

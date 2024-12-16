@@ -4,15 +4,13 @@ import time
 import msgpack
 from scipy.spatial.transform import Rotation as R
 
-HOST = "192.168.1.106"
-
 class ControlInterface:
-    def __init__(self, zmq_host=HOST, zmq_port=5554):
+    def __init__(self, zmq_host='localhost', zmq_port=5554):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.PUB)
         self.socket.setsockopt(zmq.LINGER, 0)
-        self.socket.setsockopt(zmq.SNDHWM, 1000)  # 限制发送队列最多只保存10000条消息
-        #self.socket.setsockopt(zmqCONFLATE., 1)
+        self.socket.setsockopt(zmq.SNDHWM, 1000)
+
         self.socket.bind(f"tcp://{zmq_host}:{zmq_port}")
         self.send_count = 0
 
@@ -40,26 +38,14 @@ class ControlInterface:
 
         rotation_vector = [pose[3], pose[4], pose[5]]
 
-        r = R.from_rotvec(rotation_vector)  # 从旋转向量生成旋转对象
-        quaternion = r.as_quat()  # 获取四元数 [x, y, z, w]
+        r = R.from_rotvec(rotation_vector)
+        quaternion = r.as_quat()
 
         pose_data = {
             'position': {'x': pose[0], 'y': pose[1], 'z': pose[2]},
             'orientation': {'x': quaternion[0], 'y': quaternion[1], 'z': quaternion[2], 'w': quaternion[3]},
             'timestamp': int(time.time() * 1e6),
-            # 'no': int(self.send_count)
         }
-        
-        # pose_data = {
-        #     'position': {'x': 0.5185243679605477, 'y': -0.30249453979892443, 'z': 1.0930670011521983}, 'orientation': {'x': -0.733264110588851, 'y': -0.05949216897767744, 'z': -0.6770688704888099, 'w': 0.01903077948167801}, 'timestamp': int(time.time() * 1e6), 'no': int(self.send_count)
-        # }
-        # output_file = "pose_data.txt"
-
-        # 打开输出文件
-        # with open(output_file, 'a') as f:
-        #     # 将print的数据写入到文件中
-        #     print(f"==={pose}", file=f)
-        #     print(pose_data, file=f)
         self.send_count += 1
 
         return self.send_message('servoL_cmd', pose_data)
@@ -82,12 +68,11 @@ class ControlInterface:
 
 
 class GripperControlInterface:
-    def __init__(self, zmq_host=HOST, zmq_port=5556):
+    def __init__(self, zmq_host='localhost', zmq_port=5556):
         self.context = zmq.Context(io_threads=2)
         self.socket = self.context.socket(zmq.PUB)
         self.socket.setsockopt(zmq.LINGER, 0)
-        self.socket.setsockopt(zmq.SNDHWM, 1000)  # 限制发送队列最多只保存1条消息
-        # self.socket.setsockopt(zmq.SNDBUF, 4194304)
+        self.socket.setsockopt(zmq.SNDHWM, 1000)
         self.socket.bind(f"tcp://{zmq_host}:{zmq_port}")
 
     def send_message(self, topic, data):

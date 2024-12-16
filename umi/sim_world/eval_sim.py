@@ -60,7 +60,6 @@ from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from umi.common.precise_sleep import precise_wait
 
-# from umi.real_world.bimanual_umi_rs_env import BimanualUmiRsEnv
 from umi.sim_world.bimanual_umi_sim_env import BimanualUmiSimEnv
 
 from umi.real_world.keystroke_counter import (
@@ -70,7 +69,7 @@ from umi.real_world.real_inference_util import (get_real_obs_dict,
                                                 get_real_obs_resolution,
                                                 get_real_umi_obs_dict,
                                                 get_real_umi_action)
-from umi.real_world.spacemouse_shared_memory import Spacemouse
+# from umi.real_world.spacemouse_shared_memory import Spacemouse
 from umi.common.pose_util import pose_to_mat, mat_to_pose
 
 OmegaConf.register_new_resolver("eval", eval, replace=True)
@@ -144,8 +143,7 @@ def main(input, output, robot_config,
     steps_per_inference, max_duration,
     frequency, command_latency, 
     no_mirror, sim_fov, camera_intrinsics, mirror_swap):
-    max_gripper_width = 0.08
-    gripper_speed = 0.2
+
     np.set_printoptions(precision=10)
     # load robot config file
     robot_config_data = yaml.safe_load(open(os.path.expanduser(robot_config), 'r'))
@@ -156,6 +154,7 @@ def main(input, output, robot_config,
     
     robots_config = robot_config_data['robots']
     grippers_config = robot_config_data['grippers']
+    cameras_config = robot_config_data['cameras']
 
     # load checkpoint
     ckpt_path = input
@@ -189,6 +188,7 @@ def main(input, output, robot_config,
                 output_dir=output,
                 robots_config=robots_config,
                 grippers_config=grippers_config,
+                cameras_config=cameras_config,
                 frequency=frequency,
                 obs_image_resolution=(1280,720),
                 obs_float32=True,

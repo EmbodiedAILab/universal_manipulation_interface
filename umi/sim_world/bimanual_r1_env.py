@@ -6,15 +6,16 @@ import shutil
 import math
 from multiprocessing.managers import SharedMemoryManager
 
-from umi.sim_world.single_camera import SingleCamera
-from umi.sim_world.multi_camera import MultiCameras
+from diffusion_policy.real_world.multi_camera import MultiCamera as MultiCamera
+from diffusion_policy.real_world.single_realsense import SingleRealsense as SingleCamera
+# from diffusion_policy.real_world.multi_realsense import MultiRealsense as MultiCamera
+# from diffusion_policy.real_world.single_realsense import SingleRealsense as SingleCamera
+from diffusion_policy.real_world.gstreamer_recorder import GStreamerRecorder
 from diffusion_policy.real_world.video_recorder import VideoRecorder
-
-# from umi.real_world.rtde_interpolation_controller import RTDEInterpolationController
-# from umi.real_world.dh_controller import DHController
 
 from umi.sim_world.sim_arm_controller import SimArmController
 from umi.sim_world.sim_gripper_controller import SimGripperController
+
 # =============================
 from diffusion_policy.common.timestamp_accumulator import (
     TimestampActionAccumulator,
@@ -105,7 +106,7 @@ class BimanualUmiSimEnv:
             return data
 
         rw, rh, col, row = optimal_row_cols(
-            n_cameras=len(camera_serial_numbers),
+            n_cameras=len(camera_serial_numbers)+1,
             in_wh_ratio=obs_image_resolution[0] / obs_image_resolution[1],
             max_resolution=multi_cam_vis_resolution
         )
@@ -136,7 +137,7 @@ class BimanualUmiSimEnv:
             thread_type='FRAME',
             thread_count=2)
 
-        camera = MultiCameras(
+        camera = MultiCamera(
             serial_numbers=camera_serial_numbers,
             shm_manager=shm_manager,
             resolution=video_capture_resolution,
@@ -177,7 +178,6 @@ class BimanualUmiSimEnv:
         for rc in robots_config:
             if rc['robot_type'].startswith('ur5'):
                 assert rc['robot_type'] in ['ur5', 'ur5e']
-                # this_robot = RTDEInterpolationController(
                 this_robot = SimArmController(
                     shm_manager=shm_manager,
                     robot_ip=rc['robot_ip'],
