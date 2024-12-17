@@ -88,8 +88,6 @@ class SharedMemoryRingBuffer:
             put_desired_frequency: float=60
             ):
         specs = list()
-        # for key, value in examples.items():
-        #     print(f"{key}: {type(value)}")
 
         for key, value in examples.items():
             shape = None
@@ -97,7 +95,7 @@ class SharedMemoryRingBuffer:
             if isinstance(value, np.ndarray):
                 shape = value.shape
                 dtype = value.dtype
-                assert dtype != np.dtype('O')  #TODO 没数据的时候会报错
+                assert dtype != np.dtype('O')
             elif isinstance(value, numbers.Number):
                 shape = tuple()
                 dtype = np.dtype(type(value))

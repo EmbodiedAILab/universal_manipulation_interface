@@ -11,6 +11,7 @@ from umi.shared_memory.shared_memory_ring_buffer import SharedMemoryRingBuffer
 from umi.shared_memory.shared_memory_queue import SharedMemoryQueue, Full, Empty
 from umi.sim_world.camera_receive_interface import CameraReceiver
 from diffusion_policy.real_world.video_recorder import VideoRecorder
+from urllib.parse import urlparse
 
 import threading
 
@@ -35,7 +36,7 @@ class SingleCamera(mp.Process):
             # or /dev/v4l/by-id/usb-Elgato_Elgato_HD60_X_A00XB320216MTR-video-index0
             # dev_video_path,
             serial_number,
-            hostname='localhost',
+            address='localhost:5555',
             resolution=(1280, 720),
             capture_fps=30,
             put_fps=None,
@@ -114,10 +115,13 @@ class SingleCamera(mp.Process):
                 crf=18,
                 thread_type='FRAME',
                 thread_count=1)
+        parsed = urlparse(address)
+        host = parsed.hostname
+        port = parsed.port
 
         self.serial_number = serial_number
         self.shm_manager = shm_manager
-        self.hostname = hostname
+        self.address = address
         self.resolution = resolution
         self.capture_fps = capture_fps
         self.put_fps = put_fps
@@ -138,7 +142,7 @@ class SingleCamera(mp.Process):
         self.vis_ring_buffer = vis_ring_buffer
         self.command_queue = command_queue
 
-        self.camera_receriver = CameraReceiver(shm_manager=shm_manager, zmq_host=self.hostname)
+        self.camera_receiver = CameraReceiver(shm_manager=shm_manager, zmq_host=host, zmq_port=port, topic=self.serial_number)
         self.last_frame_time = 0.0
         
     @staticmethod
@@ -157,14 +161,14 @@ class SingleCamera(mp.Process):
 
     # ========= user API ===========
     def start(self, wait=True, put_start_time=None):
-        self.camera_receriver.start()
+        self.camera_receiver.start()
         self.put_start_time = put_start_time
         super().start()
         if wait:
             self.start_wait()
     
     def stop(self, wait=True):
-        self.camera_receriver.stop()
+        self.camera_receiver.stop()
         # self.video_recorder.stop()
         self.stop_event.set()
         if wait:
@@ -213,7 +217,7 @@ class SingleCamera(mp.Process):
         })
 
     # ========= interval API ===========
-def run(self):
+    def run(self):
         put_idx = None
         put_start_time = self.put_start_time
         if put_start_time is None:

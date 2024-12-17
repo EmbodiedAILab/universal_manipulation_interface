@@ -33,10 +33,18 @@
   # cameras settings
   "cameras": [
     {
-      "serial_number": 'camera_01',
+      "serial_number": 'camera_0',
       "height": 1280,
       "width": 720,
-      "fps": 30
+      "fps": 30,
+      "address": "localhost:5553"
+    },
+    {
+      "serial_number": 'camera_1',
+      "height": 1280,
+      "width": 720,
+      "fps": 30,
+      "address": "localhost:5553"
     },
   ],
 

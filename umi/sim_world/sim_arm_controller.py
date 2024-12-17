@@ -7,7 +7,6 @@ import scipy.interpolate as si
 import scipy.spatial.transform as st
 import numpy as np
 from umi.sim_world.ros_control_interface import ControlInterface
-from umi.sim_world.ros_receive_interface import ReceiveInterface
 from umi.sim_world.zmq_receiver import ZmqSubcriber
 from umi.shared_memory.shared_memory_queue import (
     SharedMemoryQueue, Empty)

@@ -10,9 +10,8 @@ from diffusion_policy.real_world.video_recorder import VideoRecorder
 
 class MultiCameras:
     def __init__(self,
-        serial_numbers: Optional[List[str]]=None,
+        cameras_config,
         shm_manager: Optional[SharedMemoryManager]=None,
-        hostname='localhost',
         resolution=(1280,720),
         capture_fps=30,
         put_fps=None,
@@ -32,9 +31,7 @@ class MultiCameras:
         if shm_manager is None:
             shm_manager = SharedMemoryManager()
             shm_manager.start()
-        if serial_numbers is None:
-            serial_numbers = SingleCamera.get_connected_devices_serial()
-        n_cameras = len(serial_numbers)
+        n_cameras = len(cameras_config)
 
         # advanced_mode_config = repeat_to_list(
         #     advanced_mode_config, n_cameras, dict)
@@ -49,19 +46,16 @@ class MultiCameras:
             video_recorder, n_cameras, VideoRecorder)
 
         cameras = dict()
-        for i, serial in enumerate(serial_numbers):
-            cameras[serial] = SingleCamera(
+        for i,camera in enumerate(cameras_config):
+            cameras[camera['serial_number']] = SingleCamera(
                 shm_manager=shm_manager,
-                hostname=hostname,
-                serial_number=serial,
+                address=camera['address'],
+                serial_number=camera['serial_number'],
                 resolution=resolution,
                 capture_fps=capture_fps,
                 put_fps=put_fps,
                 put_downsample=put_downsample,
                 record_fps=record_fps,
-                # enable_color=enable_color,
-                # enable_depth=enable_depth,
-                # enable_infrared=enable_infrared,
                 get_max_k=get_max_k,
                 # advanced_mode_config=advanced_mode_config[i],
                 transform=transform[i],
