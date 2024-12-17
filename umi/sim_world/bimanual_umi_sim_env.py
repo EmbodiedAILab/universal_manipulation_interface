@@ -137,7 +137,7 @@ class BimanualUmiSimEnv:
             thread_count=2)
 
         camera = MultiCameras(
-            serial_numbers=camera_serial_numbers,
+            cameras_config=cameras_config,
             shm_manager=shm_manager,
             resolution=video_capture_resolution,
             capture_fps=capture_fps,

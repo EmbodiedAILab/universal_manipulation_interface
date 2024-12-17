@@ -1,4 +1,5 @@
 from setuptools import setup
+from glob import glob
 
 package_name = 'zmq_bridge'
 
@@ -10,6 +11,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', glob['launch/*.launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -20,7 +22,12 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'ros_zmq_bridge = zmq_bridge.ros_zmq_bridge:main',
+            'umi_bridge = zmq_bridge.umi_bridge:main',
+            'r1_bridge = zmq_bridge.r1_bridge:main',
+            'camera_bridge = zmq_bridge.camera_bridge:main',
+            'states_bridge = zmq_bridge.states_bridge:main',
+            'arm_control_bridge = zmq_bridge.arm_control_bridge:main',
+            'gripper_control_bridge = zmq_bridge.gripper_control_bridge:main',
         ],
     },
 )

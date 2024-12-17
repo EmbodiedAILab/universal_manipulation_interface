@@ -183,7 +183,10 @@ data_folder/
 
 realsense_aruco_ws/src/joint_state_publisher
 realsense_aruco_ws/src/joint_state_publisher/*
+realsense_aruco_ws/.catkin_tools/*
+realsense_aruco_ws/logs/*
 bash/*
 sim2sim_o3de_ws/build
 sim2sim_o3de_ws/install
 sim2sim_o3de_ws/log
+*.txt
