@@ -50,6 +50,20 @@ ament_target_dependencies(
 target_include_directories(arm_eef_controller PUBLIC ${TINYXML2_INCLUDE_DIRS})
 target_link_libraries(arm_eef_controller ${TINYXML2_LIBRARIES})
 
+add_executable(gripper_controller src/gripper_controller.cpp)
+target_include_directories(gripper_controller PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>)
+target_compile_features(gripper_controller PUBLIC c_std_99 cxx_std_17)  # Require C99 and C++17
+ament_target_dependencies(
+  gripper_controller
+  "moveit_ros_planning_interface"
+  "rclcpp"
+  rclcpp_action control_msgs sensor_msgs trajectory_msgs
+)
+target_include_directories(gripper_controller PUBLIC ${TINYXML2_INCLUDE_DIRS})
+target_link_libraries(gripper_controller ${TINYXML2_LIBRARIES})
+
 add_executable(arm_eef_controller_test src/arm_eef_controller_test.cpp)
 target_include_directories(arm_eef_controller_test PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -78,7 +92,7 @@ ament_target_dependencies(
 target_include_directories(eef_pose_gripper_width_pub PUBLIC ${TINYXML2_INCLUDE_DIRS})
 target_link_libraries(eef_pose_gripper_width_pub ${TINYXML2_LIBRARIES})
 
-install(TARGETS arm_joint_controller arm_eef_controller arm_eef_controller_test eef_pose_gripper_width_pub
+install(TARGETS arm_joint_controller arm_eef_controller gripper_controller arm_eef_controller_test eef_pose_gripper_width_pub
   DESTINATION lib/${PROJECT_NAME})
 
 install(

@@ -21,7 +21,7 @@
       </collision>
     </link>
 
-    <link name="dh_leftfinger">
+    <link name="left_finger_link">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <mass value="0.1" />
@@ -41,7 +41,7 @@
       </collision>
     </link>
 
-    <link name="dh_rightfinger">
+    <link name="right_finger_link">
       <inertial>
         <origin xyz="0 0 0" rpy="0 0 0" />
         <mass value="0.1" />
@@ -61,18 +61,18 @@
       </collision>
     </link>
 
-    <joint name="dh_finger_joint1" type="prismatic">
+    <joint name="left_finger_joint" type="prismatic">
         <parent link="hand_link" />
-        <child link="dh_leftfinger" />
+        <child link="left_finger_link" />
         <origin xyz="0 -0.01105 0.10" rpy="0 0 0" />
         <axis xyz="-1 0 0"/>
         <limit effort="100" lower="0.0" upper="0.04" velocity="0.2"/>
         <dynamics damping="0.3"/>
     </joint>
 
-    <joint name="dh_finger_joint2" type="prismatic">
+    <joint name="right_finger_joint" type="prismatic">
         <parent link="hand_link" />
-        <child link="dh_rightfinger" />
+        <child link="right_finger_link" />
         <origin xyz="0 -0.01105 0.10" rpy="0 0 0" />
         <limit effort="100.0" lower="0" upper="0.04" velocity="0.2"/>
         <!-- <mimic joint="dh_finger_joint1" /> -->

@@ -21,6 +21,13 @@ def generate_launch_description():
         parameters=[{'use_sim_time': True}],
         output="screen",
     )
+    gripper_control_node = Node(
+        package='umi_control',
+        executable='gripper_controller',
+        name='gripper_controller',
+        parameters=[{'use_sim_time': True}],
+        output="screen",
+    )
     eef_pose_gripper_width_pub_node = Node(
             package='umi_control',
             executable='eef_pose_gripper_width_pub',
@@ -32,6 +39,7 @@ def generate_launch_description():
     nodes_to_start = [
         eef_control_node,
         joint_control_node,
+        gripper_control_node,
         eef_pose_gripper_width_pub_node,
     ]
     return LaunchDescription(nodes_to_start)
