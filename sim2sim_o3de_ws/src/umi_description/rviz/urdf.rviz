@@ -86,12 +86,12 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-        dh_leftfinger:
+        left_finger_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
           Value: true
-        dh_rightfinger:
+        right_finger_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
