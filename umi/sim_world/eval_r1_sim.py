@@ -60,7 +60,7 @@ from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from umi.common.precise_sleep import precise_wait
 
-from umi.sim_world.bimanual_r1_env import BimanualR1Env
+from umi.sim_world.bimanual_r1_sim_env import BimanualR1SimEnv
 
 from umi.real_world.keystroke_counter import (
     KeystrokeCounter, Key, KeyCode
@@ -184,10 +184,11 @@ def main(input, output, robot_config,
     print("steps_per_inference:", steps_per_inference)
     with SharedMemoryManager() as shm_manager:
         with KeystrokeCounter() as key_counter, \
-            BimanualR1Env(
+            BimanualR1SimEnv(
                 output_dir=output,
                 robots_config=robots_config,
                 grippers_config=grippers_config,
+                vacuums_config=vacuum_config,
                 cameras_config=cameras_config,
                 frequency=frequency,
                 obs_image_resolution=(1280,720),
@@ -287,11 +288,11 @@ def main(input, output, robot_config,
                 # ========= human control loop ==========
                 print("Human in control!")
                 robot_states = env.get_robot_state()
-                # target_pose = np.stack([rs['TargetTCPPose'] for rs in robot_states])
 
                 gripper_states = env.get_gripper_state()
-                # gripper_target_pos = np.asarray([gs['gripper_position'] for gs in gripper_states])
-                
+
+                vacuum_status = env.get_vacuum_state()
+
                 control_robot_idx_list = [0]
 
                 t_start = time.monotonic()

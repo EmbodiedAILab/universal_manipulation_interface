@@ -96,7 +96,7 @@ class SequenceSampler:
             # construct action (concatenation of [eef_pos, eef_rot, gripper_width])
             actions = list()
             for robot_idx in range(self.num_robot):
-                for cat in ['eef_pos', 'eef_rot_axis_angle', 'gripper_width']:
+                for cat in ['eef_pos', 'eef_rot_axis_angle', 'gripper_width', 'vacuum_status']:
                     key = f'robot{robot_idx}_{cat}'
                     if key in self.replay_buffer:
                         actions.append(self.replay_buffer[key])

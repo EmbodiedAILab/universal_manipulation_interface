@@ -73,6 +73,18 @@ class ZmqSubcriber(mp.Process):
                 put_desired_frequency=frequency
             )
 
+            example_vacuum = {
+                'vacuum_status': 100.0,
+                'vacuum_timestamp': time.time()
+            }
+            ring_buffer_vacuum = SharedMemoryRingBuffer.create_from_examples(
+                shm_manager=shm_manager,
+                examples=example_vacuum,
+                get_max_k=get_max_k,
+                get_time_budget=0.2,
+                put_desired_frequency=frequency
+            )
+
             example = {
                 'cmd': Command.SHUTDOWN.value,
             }
@@ -88,6 +100,7 @@ class ZmqSubcriber(mp.Process):
             self.ready_event = mp.Event()
             self.ring_buffer_eef = ring_buffer_eef
             self.ring_buffer_gripper = ring_buffer_gripper
+            self.ring_buffer_vacuum = ring_buffer_vacuum
             self.input_queue = input_queue
             self._initialized = True
             self.is_running = False
@@ -166,6 +179,15 @@ class ZmqSubcriber(mp.Process):
     
     def get_all_state_gripper(self):
         return self.ring_buffer_gripper.get_all()
+
+    def get_vacuum_state(self, k=None, out=None):
+        if k is None:
+            return self.ring_buffer_gripper.get(out=out)
+        else:
+            return self.ring_buffer_gripper.get_last_k(k=k, out=out)
+
+    def get_all_state_vacuum(self):
+        return self.ring_buffer_vacuum.get_all()
     
     # ========= main loop in process ============
 
@@ -176,6 +198,7 @@ class ZmqSubcriber(mp.Process):
             return
         exist_eef_pose=False
         exist_gripper_width=False
+        exist_vacuum_status=False
         keep_running = True
         while keep_running:
             try:
@@ -213,6 +236,16 @@ class ZmqSubcriber(mp.Process):
                     if not exist_gripper_width:
                         exist_gripper_width=True
                         print('gripper_width exist')
+                elif topic == "vacuum_status" and isinstance(data, dict):
+                    self.vacuum_status = data['status']
+                    vacuum_status = dict()
+                    t_recv = time.time()
+                    vacuum_status['vacuum_status'] = self.vacuum_status
+                    vacuum_status['vacuum_timestamp'] = t_recv-0.03
+                    self.ring_buffer_vacuum.put(vacuum_status)
+                    if not exist_vacuum_status:
+                        exist_vacuum_status=True
+                        print('vacuum_status exist')
                 if not self.ready_event.is_set() and not exist_eef_pose and not exist_gripper_width:
                     self.ready_event.set()
                     print("ready event set")

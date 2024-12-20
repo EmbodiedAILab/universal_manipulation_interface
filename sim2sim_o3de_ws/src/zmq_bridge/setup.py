@@ -28,6 +28,7 @@ setup(
             'states_bridge = zmq_bridge.states_bridge:main',
             'arm_control_bridge = zmq_bridge.arm_control_bridge:main',
             'gripper_control_bridge = zmq_bridge.gripper_control_bridge:main',
+            'vacuum_control_bridge = zmq_bridge.vacuum_control_bridge:main',
         ],
     },
 )

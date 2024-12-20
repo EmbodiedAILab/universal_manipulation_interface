@@ -49,3 +49,10 @@ def get_gripper_calibration_interpolator(
     gripper_actual_width = aruco_actual_width - aruco_min_width
     interp = get_interp1d(aruco_measured_width, gripper_actual_width)
     return interp
+
+def get_step_interp1d(t, x):
+    interp = si.interp1d(
+        t, x,
+        axis=0, kind='nearest', bounds_error=False,
+        fill_value=(x[0], x[-1]))
+    return interp

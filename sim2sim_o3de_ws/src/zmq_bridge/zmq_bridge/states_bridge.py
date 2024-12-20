@@ -14,6 +14,8 @@ class ROStoZMQBridge(Node):
         zmq_port = self.declare_parameter('zmq_port', '5555').get_parameter_value().string_value
         eef_pose_topic = self.declare_parameter('eef_pose_topic', '/eef_pose').get_parameter_value().string_value
         gripper_width_topic = self.declare_parameter('gripper_width_topic', '/gripper_width').get_parameter_value().string_value
+        vacuum_status_topic = self.declare_parameter('vacuum_status_topic', '/vacuum_status').get_parameter_value().string_value
+
 
         self.zmq_context = zmq.Context()
         self.socket = self.zmq_context.socket(zmq.PUB)
@@ -23,6 +25,7 @@ class ROStoZMQBridge(Node):
         
         self.create_subscription(PoseStamped, eef_pose_topic, self.eef_pose_callback, 10)
         self.create_subscription(Float64, gripper_width_topic, self.gripper_width_callback, 10)
+        self.create_subscription(Float64, vacuum_status_topic, self.vacuum_status_callback, 10)
 
     def eef_pose_callback(self, msg):
         current_time_ns = self.get_clock().now().nanoseconds
@@ -48,6 +51,12 @@ class ROStoZMQBridge(Node):
         serialized_data = msgpack.packb(gripper_width_data, use_bin_type=True)
         self.socket.send_multipart([b'gripper_width', serialized_data])
         self.get_logger().info(f"Sent gripper_width to ZMQ: {gripper_width_data}")
+
+    def vacuum_status_callback(self, msg):
+        vacuum_status_data = {'status': msg.data, 'timestamp': self.get_clock().now().nanoseconds}
+        serialized_data = msgpack.packb(vacuum_status_data, use_bin_type=True)
+        self.socket.send_multipart([b'vacuum_status', serialized_data])
+        self.get_logger().info(f"Sent gripper_width to ZMQ: {vacuum_status_data}")
 
     def destroy(self):
         self.socket.close()

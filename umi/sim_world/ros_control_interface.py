@@ -101,6 +101,40 @@ class GripperControlInterface:
             self.context.term()
 
 
+class VacuumControlInterface:
+    def __init__(self, zmq_host='localhost', zmq_port=5557):
+        self.context = zmq.Context(io_threads=2)
+        self.socket = self.context.socket(zmq.PUB)
+        self.socket.setsockopt(zmq.LINGER, 0)
+        self.socket.setsockopt(zmq.SNDHWM, 1000)  # 限制发送队列最多只保存1条消息
+        # self.socket.setsockopt(zmq.SNDBUF, 4194304)
+        self.socket.bind(f"tcp://{zmq_host}:{zmq_port}")
+
+    def send_message(self, topic, data):
+        """通过 ZeroMQ 发布序列化的消息"""
+        try:
+            serialized_data = msgpack.packb(data, use_bin_type=True)
+            self.socket.send_multipart([topic.encode(), serialized_data])
+            # print(f"sent vacuum_cmd: {data}")
+            return True
+        except zmq.ZMQError as e:
+            print(f"send failed with error: {e}")
+            return False
+
+    def setVacuumTargetPos(self, target_pos):
+        vacuum_data = {
+            'status': target_pos,
+            'timestamp': int(time.time() * 1e6)
+        }
+
+        return self.send_message('vacuum_cmd', vacuum_data)
+
+    def cleanup(self):
+        self.socket.setsockopt(zmq.LINGER, 0)
+        self.socket.close()
+        self.context.term()
+
+
 if __name__ == "__main__":
     zmq_control = ControlInterface()
     gripper_control = GripperControlInterface()

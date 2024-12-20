@@ -27,7 +27,8 @@ def generate_launch_description():
                 {'zmq_host': '127.0.0.1'},
                 {'zmq_port': '5555'},
                 {'eef_pose_topic': '/eef_pose'},
-                {'gripper_width_topic': '/gripper_width'}
+                {'gripper_width_topic': '/gripper_width'},
+                {'vacuum_status_topic': '/vacuum_status_'}
             ]
         ),
 
@@ -54,6 +55,18 @@ def generate_launch_description():
                 {'zmq_host': '127.0.0.1'},
                 {'zmq_port': '5556'},
                 {'gripper_control_topic_name': '/gripper_cmd'}
+            ]
+        ),
+
+        # vacuum control
+        Node(
+            package='zmq_bridge',
+            executable='vacuum_control_bridge',
+            name='vacuum_control_bridge',
+            parameters=[
+                {'zmq_host': '127.0.0.1'},
+                {'zmq_port': '5557'},
+                {'vacuum_control_topic_name': '/vacuum_cmd'}
             ]
         ),
     ])

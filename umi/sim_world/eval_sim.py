@@ -240,9 +240,7 @@ def main(input, output, robot_config,
             cls = hydra.utils.get_class(cfg._target_)
             workspace = cls(cfg)
             workspace: BaseWorkspace
-            print('cls ')
             workspace.load_payload(payload, exclude_keys=None, include_keys=None)
-            print('loaded')
 
             policy = workspace.model
             if cfg.training.use_ema:
