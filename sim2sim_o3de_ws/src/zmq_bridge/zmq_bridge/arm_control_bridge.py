@@ -9,7 +9,7 @@ import msgpack
 
 class ZMQtoROSBridge(Node):
     def __init__(self, zmq_host="127.0.0.1", zmq_port='5554'):
-        super().__init__('zmq_to_ros_bridge')
+        super().__init__('zmq_to_ros_bridge_arm')
 
         zmq_host = self.declare_parameter('zmq_host', '127.0.0.1').get_parameter_value().string_value
         zmq_port = self.declare_parameter('zmq_port', '5554').get_parameter_value().string_value

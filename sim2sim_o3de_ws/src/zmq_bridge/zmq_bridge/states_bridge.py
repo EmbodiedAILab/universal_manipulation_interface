@@ -3,12 +3,13 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Float64
+from sensor_msgs.msg import JointState
 from cv_bridge import CvBridge
 import msgpack
 
 class ROStoZMQBridge(Node):
     def __init__(self, zmq_host="127.0.0.1", zmq_port='5555'):
-        super().__init__('ros_zmq_bridge')
+        super().__init__('ros_zmq_bridge_state')
 
         zmq_host = self.declare_parameter('zmq_host', '127.0.0.1').get_parameter_value().string_value
         zmq_port = self.declare_parameter('zmq_port', '5555').get_parameter_value().string_value
@@ -25,7 +26,7 @@ class ROStoZMQBridge(Node):
         
         self.create_subscription(PoseStamped, eef_pose_topic, self.eef_pose_callback, 10)
         self.create_subscription(Float64, gripper_width_topic, self.gripper_width_callback, 10)
-        self.create_subscription(Float64, vacuum_status_topic, self.vacuum_status_callback, 10)
+        self.create_subscription(JointState, vacuum_status_topic, self.vacuum_status_callback, 10)
 
     def eef_pose_callback(self, msg):
         current_time_ns = self.get_clock().now().nanoseconds
@@ -50,13 +51,13 @@ class ROStoZMQBridge(Node):
         gripper_width_data = {'width': msg.data, 'timestamp': self.get_clock().now().nanoseconds}
         serialized_data = msgpack.packb(gripper_width_data, use_bin_type=True)
         self.socket.send_multipart([b'gripper_width', serialized_data])
-        self.get_logger().info(f"Sent gripper_width to ZMQ: {gripper_width_data}")
+        self.get_logger().debug(f"Sent gripper_width to ZMQ: {gripper_width_data}")
 
     def vacuum_status_callback(self, msg):
-        vacuum_status_data = {'status': msg.data, 'timestamp': self.get_clock().now().nanoseconds}
+        vacuum_status_data = {'status': msg.position[0], 'timestamp': self.get_clock().now().nanoseconds}
         serialized_data = msgpack.packb(vacuum_status_data, use_bin_type=True)
         self.socket.send_multipart([b'vacuum_status', serialized_data])
-        self.get_logger().info(f"Sent gripper_width to ZMQ: {vacuum_status_data}")
+        self.get_logger().debug(f"Sent gripper_width to ZMQ: {vacuum_status_data}")
 
     def destroy(self):
         self.socket.close()

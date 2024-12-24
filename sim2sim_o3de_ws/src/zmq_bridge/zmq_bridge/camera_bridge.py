@@ -7,7 +7,7 @@ import pickle
 
 class ROStoZMQBridge(Node):
     def __init__(self):
-        super().__init__('ros_zmq_bridge')
+        super().__init__('ros_zmq_bridge_camera')
 
         zmq_host = self.declare_parameter('zmq_host', '127.0.0.1').get_parameter_value().string_value
         zmq_port = self.declare_parameter('zmq_port', '5566').get_parameter_value().string_value
@@ -38,7 +38,7 @@ class ROStoZMQBridge(Node):
         try:
             message = self.zmq_message_name.encode('utf-8') + b' ' + serialized_data
             self.socket.send(message)
-            self.get_logger().info(f"Published image with topic '{self.zmq_message_name}'.")
+            self.get_logger().debug(f"Published image with topic '{self.zmq_message_name}'.")
         except Exception as e:
             self.get_logger().error(f"Error sending data over ZeroMQ: {e}")
 

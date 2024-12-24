@@ -8,7 +8,7 @@ def generate_launch_description():
         Node(
             package='zmq_bridge',
             executable='camera_bridge',
-            name='camera_bridge',
+            name='camera_bridge_head',
             parameters=[
                 {'zmq_host': '127.0.0.1'},
                 {'zmq_port': '5566'},
@@ -20,12 +20,24 @@ def generate_launch_description():
         Node(
             package='zmq_bridge',
             executable='camera_bridge',
-            name='camera_bridge',
+            name='camera_bridge_left',
             parameters=[
                 {'zmq_host': '127.0.0.1'},
                 {'zmq_port': '5567'},
                 {'ros_topic': '/left_camera_image_color'},
                 {'zmq_message_name': 'camera_1'}
+            ]
+        ),
+
+        Node(
+            package='zmq_bridge',
+            executable='camera_bridge',
+            name='camera_bridge_right',
+            parameters=[
+                {'zmq_host': '127.0.0.1'},
+                {'zmq_port': '5568'},
+                {'ros_topic': '/right_camera_image_color'},
+                {'zmq_message_name': 'camera_2'}
             ]
         ),
     ])

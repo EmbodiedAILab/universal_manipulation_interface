@@ -6,7 +6,7 @@ import msgpack
 
 class GripperZMQtoROSBridge(Node):
     def __init__(self, zmq_host="127.0.0.1", zmq_port='5556'):
-        super().__init__('zmq_to_ros_bridge')
+        super().__init__('zmq_to_ros_bridge_gripper')
 
         zmq_host = self.declare_parameter('zmq_host', '127.0.0.1').get_parameter_value().string_value
         zmq_port = self.declare_parameter('zmq_port', '5556').get_parameter_value().string_value
@@ -33,7 +33,7 @@ class GripperZMQtoROSBridge(Node):
                     joint_state_msg.name = ["gripper"]
                     joint_state_msg.position = [gripper_data['positions']]
                     self.gripper_pub.publish(joint_state_msg)
-                    self.get_logger().info(f"Published /gripper_cmd: {gripper_data['positions']}")
+                    self.get_logger().debug(f"Published /gripper_cmd: {gripper_data['positions']}")
                 else:
                     self.get_logger().warn(f"Unknown topic: {topic}")
             except Exception as e:
@@ -48,7 +48,7 @@ def main(args=None):
     gripper_cmd_node = GripperZMQtoROSBridge()
     
     try:
-        rclpy.spin(gripper_cmd_node)
+        gripper_cmd_node.zmq_to_ros()
     except KeyboardInterrupt:
         gripper_cmd_node.get_logger().info("Shutting down bridge.")
     finally:

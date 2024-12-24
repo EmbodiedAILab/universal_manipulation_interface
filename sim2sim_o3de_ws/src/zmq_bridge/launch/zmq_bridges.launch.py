@@ -28,7 +28,7 @@ def generate_launch_description():
                 {'zmq_port': '5555'},
                 {'eef_pose_topic': '/eef_pose'},
                 {'gripper_width_topic': '/gripper_width'},
-                {'vacuum_status_topic': '/vacuum_status_'}
+                {'vacuum_status_topic': '/vacuum_status'}
             ]
         ),
 

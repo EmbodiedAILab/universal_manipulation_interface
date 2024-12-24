@@ -5,8 +5,8 @@ from sensor_msgs.msg import JointState
 import msgpack
 
 class VacuumZMQtoROSBridge(Node):
-    def __init__(self, zmq_host="127.0.0.1", zmq_port='5556'):
-        super().__init__('zmq_to_ros_bridge')
+    def __init__(self, zmq_host="127.0.0.1", zmq_port='5557'):
+        super().__init__('zmq_to_ros_bridge_vacuum')
 
         zmq_host = self.declare_parameter('zmq_host', '127.0.0.1').get_parameter_value().string_value
         zmq_port = self.declare_parameter('zmq_port', '5557').get_parameter_value().string_value
@@ -33,7 +33,7 @@ class VacuumZMQtoROSBridge(Node):
                     joint_state_msg.name = ["vacuum"]
                     joint_state_msg.position = [vacuum_data['status']]
                     self.vacuum_pub.publish(joint_state_msg)
-                    self.get_logger().info(f"Published /vacuum_cmd: {vacuum_data['positions']}")
+                    self.get_logger().info(f"Published /vacuum_cmd: {vacuum_data['status']}")
                 else:
                     self.get_logger().warn(f"Unknown topic: {topic}")
             except Exception as e:
@@ -48,7 +48,7 @@ def main(args=None):
     vacuum_cmd_node = VacuumZMQtoROSBridge()
     
     try:
-        rclpy.spin(vacuum_cmd_node)
+        vacuum_cmd_node.zmq_to_ros()
     except KeyboardInterrupt:
         vacuum_cmd_node.get_logger().info("Shutting down bridge.")
     finally:
