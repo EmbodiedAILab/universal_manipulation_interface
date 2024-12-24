@@ -155,6 +155,7 @@ def main(input, output, robot_config,
     robots_config = robot_config_data['robots']
     grippers_config = robot_config_data['grippers']
     cameras_config = robot_config_data['cameras']
+    vacuums_config = robot_config_data['vacuums']
 
     # load checkpoint
     ckpt_path = input
@@ -188,7 +189,7 @@ def main(input, output, robot_config,
                 output_dir=output,
                 robots_config=robots_config,
                 grippers_config=grippers_config,
-                vacuums_config=vacuum_config,
+                vacuums_config=vacuums_config,
                 cameras_config=cameras_config,
                 frequency=frequency,
                 obs_image_resolution=(1280,720),

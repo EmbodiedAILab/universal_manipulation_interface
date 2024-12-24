@@ -182,9 +182,9 @@ class ZmqSubcriber(mp.Process):
 
     def get_vacuum_state(self, k=None, out=None):
         if k is None:
-            return self.ring_buffer_gripper.get(out=out)
+            return self.ring_buffer_vacuum.get(out=out)
         else:
-            return self.ring_buffer_gripper.get_last_k(k=k, out=out)
+            return self.ring_buffer_vacuum.get_last_k(k=k, out=out)
 
     def get_all_state_vacuum(self):
         return self.ring_buffer_vacuum.get_all()
@@ -246,7 +246,7 @@ class ZmqSubcriber(mp.Process):
                     if not exist_vacuum_status:
                         exist_vacuum_status=True
                         print('vacuum_status exist')
-                if not self.ready_event.is_set() and not exist_eef_pose and not exist_gripper_width:
+                if not self.ready_event.is_set() and exist_eef_pose and exist_gripper_width and exist_vacuum_status:
                     self.ready_event.set()
                     print("ready event set")
                 try:

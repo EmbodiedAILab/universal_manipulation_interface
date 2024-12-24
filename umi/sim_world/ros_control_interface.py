@@ -142,6 +142,7 @@ if __name__ == "__main__":
     example_pose = [1.0, 0.0, 0.5, 0.0, 0.0, 0.0]
     example_joint_positions = [0.5, 1.2, -0.8, 0.0, 0.3, -1.1]
     gripper_position = 100
+    vacuum_status = 1.0
 
     try:
         while True:

@@ -30,6 +30,16 @@
     },
   ],
 
+  "vacuums": [
+      {
+          "gripper_ip": "127.0.0.1",
+          "max_width": 0.08,
+          "min_width": 0.0,
+          "grasp_threshold": 0.055,
+          "grasp_offset": 0.01
+      },
+  ],
+
   # cameras settings
   "cameras": [
     {
@@ -37,14 +47,14 @@
       "height": 1280,
       "width": 720,
       "fps": 30,
-      "address": "localhost:5553"
+      "address": "tcp://localhost:5566"
     },
     {
       "serial_number": 'camera_1',
       "height": 1280,
       "width": 720,
       "fps": 30,
-      "address": "localhost:5553"
+      "address": "tcp://localhost:5567"
     },
   ],
 

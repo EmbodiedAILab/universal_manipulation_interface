@@ -169,18 +169,15 @@ class SingleCamera(mp.Process):
     
     def stop(self, wait=True):
         self.camera_receiver.stop()
-        # self.video_recorder.stop()
         self.stop_event.set()
         if wait:
             self.end_wait()
 
     def start_wait(self):
         self.ready_event.wait()
-        # self.video_recorder.start_wait()
-    
+
     def end_wait(self):
         self.join()
-        # self.video_recorder.end_wait()
 
     @property
     def is_ready(self):
@@ -289,14 +286,22 @@ class SingleCamera(mp.Process):
                 
             # put to vis
             vis_data = data
-            try:
-                if self.vis_transform == self.transform:
-                    vis_data = put_data
-                elif self.vis_transform is not None:
-                    vis_data = self.vis_transform(dict(data))
-            except Exception as e:
-                print(f"[Error] Exception occurred during vis_transform: {e}")
+            if self.vis_transform == self.transform:
+                vis_data = put_data
+            elif self.vis_transform is not None:
+                vis_data = self.vis_transform(dict(data))
             self.vis_ring_buffer.put(vis_data, wait=True)
+
+            # record frame
+            rec_data = data
+            if self.recording_transform == self.transform:
+                rec_data = put_data
+            elif self.recording_transform is not None:
+                rec_data = self.recording_transform(dict(data))
+
+            if self.video_recorder.is_ready():
+                self.video_recorder.write_frame(rec_data['color'],
+                                                frame_time=t_cal)
 
             # perf
             t_end = time.time()
@@ -324,9 +329,19 @@ class SingleCamera(mp.Process):
                     put_idx = None
                     put_start_time = command['put_start_time']
                 elif cmd == Command.START_RECORDING.value:
-                    print('fake start recording')
+                    video_path = str(command['video_path'])
+                    start_time = command['recording_start_time']
+                    if start_time < 0:
+                        start_time = None
+                    self.video_recorder.start(video_path, start_time=start_time)
                 elif cmd == Command.STOP_RECORDING.value:
-                    print('fake stop recording')
+                    self.video_recorder.stop()
+                    # stop need to flush all in-flight frames to disk, which might take longer than dt.
+                    # soft-reset put to drop frames to prevent ring buffer overflow.
+                    put_idx = None
+                elif cmd == Command.RESTART_PUT.value:
+                    put_idx = None
+                    put_start_time = command['put_start_time']
 
             iter_idx += 1
 

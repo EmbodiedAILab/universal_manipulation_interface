@@ -106,12 +106,12 @@ class SimVacuumController(mp.Process):
     # ========= receive APIs =============
     def get_state(self, k=None, out=None):
         if k is None:
-            return self.zmq_sub.get_gripper_state(out=out)
+            return self.zmq_sub.get_vacuum_state(out=out)
         else:
-            return self.zmq_sub.get_gripper_state(k=k,out=out)
+            return self.zmq_sub.get_vacuum_state(k=k,out=out)
 
     def get_all_state(self):
-        return self.zmq_sub.get_all_state_gripper()
+        return self.zmq_sub.get_all_state_vacuum()
 
     # ========= main loop in process ============
     def run(self):
@@ -119,7 +119,7 @@ class SimVacuumController(mp.Process):
         try:             
             ros_c = VacuumControlInterface()
             # get initial
-            status = self.zmq_sub.get_gripper_state()['vacuum_status']
+            status = self.zmq_sub.get_vacuum_state()['vacuum_status']
             curr_t = time.monotonic()
             last_waypoint_time = curr_t
             # TODO
