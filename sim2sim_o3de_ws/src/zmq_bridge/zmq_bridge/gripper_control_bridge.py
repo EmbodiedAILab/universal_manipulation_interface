@@ -48,7 +48,7 @@ def main(args=None):
     gripper_cmd_node = GripperZMQtoROSBridge()
     
     try:
-        rclpy.spin(gripper_cmd_node)
+        gripper_cmd_node.zmq_to_ros()
     except KeyboardInterrupt:
         gripper_cmd_node.get_logger().info("Shutting down bridge.")
     finally:

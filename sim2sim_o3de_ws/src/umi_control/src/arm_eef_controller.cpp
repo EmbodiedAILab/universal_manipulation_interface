@@ -6,7 +6,7 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/robot_model/robot_model.h>
 #include <moveit/robot_state/robot_state.h>
-#include <geometry_msgs/msg/pose.hpp>
+#include <geometry_msgs/msg/pose_stamped.hpp>
 #include <std_msgs/msg/float64_multi_array.hpp>
 #include <Eigen/Geometry>
 #include <umi_control/tf2_helper.hpp>
@@ -31,7 +31,7 @@ public:
     RCLCPP_INFO(this->get_logger(), "eef frame %s", eefFrame_.c_str());
 
     jointCommandPub_ = this->create_publisher<std_msgs::msg::Float64MultiArray>("joint_servo_controller", 10);
-    eefCommandSub_ = this->create_subscription<geometry_msgs::msg::Pose>(
+    eefCommandSub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
         "eef_servo_controller", 10, std::bind(&CartersianController::EEFCommandCallback, this, std::placeholders::_1));
     preTime_ = this->get_clock()->now();
     RCLCPP_WARN(this->get_logger(), "Ready to take new end effector command!");
@@ -53,11 +53,15 @@ private:
   rclcpp::Time preTime_;
   const double MAX_TIMEOUT_ = 0.2;
 
-  rclcpp::Subscription<geometry_msgs::msg::Pose>::SharedPtr eefCommandSub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr eefCommandSub_;
   rclcpp::Publisher<std_msgs::msg::Float64MultiArray>::SharedPtr jointCommandPub_;
 
-  void EEFCommandCallback(const geometry_msgs::msg::Pose::SharedPtr msg)
+  void EEFCommandCallback(const geometry_msgs::msg::PoseStamped::SharedPtr msg)
   {
+    RCLCPP_INFO(this->get_logger(), "Received Pose: position: [%.3f, %.3f, %.3f], orientation: [%.3f, %.3f, %.3f, %.3f]",
+            msg->pose.position.x, msg->pose.position.y, msg->pose.position.z,
+            msg->pose.orientation.x, msg->pose.orientation.y, msg->pose.orientation.z, msg->pose.orientation.w);
+
     if (initialized_ == false)
     {
       robotState_ = moveGroupInterface_.getCurrentState();
@@ -78,12 +82,24 @@ private:
     // 但是在ROS1中，会出现跳变的问题。因此在ROS1中推荐使用setFromDiffIK
     // 此外，在ROS2中也测试过setFromDiffIK，但是因为O3DE中的机器人关节运动会存在扰动，因此控制不稳定。
     // 因此，如果未来有使用setFromDiffIK，还需要详细的调试
-    const auto toolLink2World = base2WorldMatrix_ * tf2_helper::PoseToMatrix(*msg);
-    robotState_->setFromIK(jointModelGroup_, tf2_helper::MatrixToPose(toolLink2World));
+    const auto toolLink2World = base2WorldMatrix_ * tf2_helper::PoseToMatrix(msg->pose);
+    bool success = robotState_->setFromIK(jointModelGroup_, tf2_helper::MatrixToPose(toolLink2World));
+    if (success) {
+        RCLCPP_INFO(this->get_logger(), "get IK success");
+    } else {
+        // IK 计算失败
+        RCLCPP_INFO(this->get_logger(), "get IK fail");
+    }
     // robotState_->setFromIK(jointModelGroup_, *msg);
 
     std_msgs::msg::Float64MultiArray jointCommandMsg;
     robotState_->copyJointGroupPositions(jointModelGroup_, jointCommandMsg.data);
+    
+    for (size_t i = 0; i < jointCommandMsg.data.size(); ++i)
+    {
+        RCLCPP_INFO(this->get_logger(), "Joint[%zu]: %.6f", i, jointCommandMsg.data[i]);
+    }
+
     jointCommandPub_->publish(jointCommandMsg);
 
     preTime_ = this->get_clock()->now();

@@ -29,4 +29,4 @@ arm_controller:
       []
 hand_controller:
   ros__parameters:
-    joint: dh_finger_joint1
+    joint: left_finger_joint

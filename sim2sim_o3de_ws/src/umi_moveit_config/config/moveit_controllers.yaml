@@ -23,7 +23,7 @@ moveit_simple_controller_manager:
   hand_controller:
     type: GripperCommand
     joints:
-      - dh_finger_joint1
-      - dh_finger_joint2
+      - left_finger_joint
+      - right_finger_joint
     action_ns: gripper_cmd
     default: true

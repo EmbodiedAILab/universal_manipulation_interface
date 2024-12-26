@@ -1,8 +1,8 @@
 # Default initial positions for umi's ros2_control fake system
 
 initial_positions:
-  dh_finger_joint1: 0
-  dh_finger_joint2: 0
+  left_finger_joint: 0
+  right_finger_joint: 0
   elbow_joint: 0
   shoulder_lift_joint: 0
   shoulder_pan_joint: 0
