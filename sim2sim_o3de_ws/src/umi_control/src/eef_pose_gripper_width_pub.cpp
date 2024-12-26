@@ -36,7 +36,7 @@ int main(int argc, char * argv[])
 
     Eigen::Isometry3d base2WorldMatrix = robotState->getFrameTransform("base");
 
-    auto eefPosePub_ = node->create_publisher<geometry_msgs::msg::Pose>("eef_pose", 10);
+    auto eefPosePub_ = node->create_publisher<geometry_msgs::msg::PoseStamped>("eef_pose", 10);
     auto gripperWidthPub_ = node->create_publisher<std_msgs::msg::Float64>("gripper_width", 10);
 
     rclcpp::Rate loop_rate(50); // 设置循环频率为 50 Hz
@@ -54,7 +54,9 @@ int main(int argc, char * argv[])
         }
         gripperWidth.data = handJointValues[0] + handJointValues[1];
         
-        eefPosePub_->publish(toolLink2BasePose);
+        geometry_msgs::msg::PoseStamped currentPoseStamped;
+        currentPoseStamped.header.pose = toolLink2BasePose;
+        eefPosePub_->publish(currentPoseStamped);
         gripperWidthPub_->publish(gripperWidth);
         loop_rate.sleep(); // 控制发布频率
     }
