@@ -1,0 +1,816 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="battery">
+
+  <xacro:property name="M_PI" value="3.1415926535897931" />
+  <xacro:property name="distance" value="0.7" />
+
+  <link name="world" />
+
+  <link name="cabinet1">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/cabinet1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/cabinet1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="cabinet1_world" type="fixed">
+    <parent link="world" />
+    <child link="cabinet1" />
+    <origin rpy="0 0 0" xyz="0 0 0" />
+  </joint>
+
+  <link name="cabinet2">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/cabinet2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/cabinet2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="cabinet2_joint" type="fixed">
+    <parent link="cabinet1" />
+    <child link="cabinet2" />
+    <origin rpy="0 0 0" xyz="0	0	1.84" />
+  </joint>
+
+  <link name="vertical1">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="vertical_joint1" type="fixed">
+    <parent link="cabinet1" />
+    <child link="vertical1" />
+    <origin rpy="0 0 0" xyz="-0.2979	0	1.705" />
+  </joint>
+
+  <link name="vertical2">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="vertical_joint2" type="fixed">
+    <parent link="cabinet1" />
+    <child link="vertical2" />
+    <origin rpy="0 0 0" xyz="0.2929	0	1.705" />
+  </joint>
+
+  <link name="vertical3">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="vertical_joint3" type="fixed">
+    <parent link="cabinet1" />
+    <child link="vertical3" />
+    <origin rpy="0 0 0" xyz="-0.1009	0	1.6133" />
+  </joint>
+
+  <link name="vertical4">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="vertical_joint4" type="fixed">
+    <parent link="cabinet1" />
+    <child link="vertical4" />
+    <origin rpy="0 0 0" xyz="0.0961	0	1.6133" />
+  </joint>
+
+  <link name="vertical5">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="vertical_joint5" type="fixed">
+    <parent link="cabinet1" />
+    <child link="vertical5" />
+    <origin rpy="0 0 0" xyz="-0.1009	0	1.705" />
+  </joint>
+
+  <link name="vertical6">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="vertical_joint6" type="fixed">
+    <parent link="cabinet1" />
+    <child link="vertical6" />
+    <origin rpy="0 0 0" xyz="0.0961	0	1.705" />
+  </joint>
+
+  <link name="vertical7">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="vertical_joint7" type="fixed">
+    <parent link="cabinet1" />
+    <child link="vertical7" />
+    <origin rpy="0 0 0" xyz="-0.1009	0	1.7967" />
+  </joint>
+
+  <link name="vertical8">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/vertical_plate2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="vertical_joint8" type="fixed">
+    <parent link="cabinet1" />
+    <child link="vertical8" />
+    <origin rpy="0 0 0" xyz="0.0961	0	1.7967" />
+  </joint>
+
+  <link name="horizon1">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/horiz_plate.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/horiz_plate.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="horiz_joint1" type="fixed">
+    <parent link="cabinet1" />
+    <child link="horizon1" />
+    <origin rpy="0 0 0" xyz="0.00015	0	1.6617" />
+  </joint>
+
+  <link name="horizon2">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/horiz_plate.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/horiz_plate.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="horiz_joint2" type="fixed">
+    <parent link="cabinet1" />
+    <child link="horizon2" />
+    <origin rpy="0 0 0" xyz="0.00015	0	1.7534" />
+  </joint>
+
+  <link name="battery1">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="battery_joint1" type="prismatic">
+    <parent link="cabinet1" />
+    <child link="battery1" />
+    <origin rpy="0 0 0" xyz="-0.1969	0	1.6093" />
+    <axis xyz="0 -1 0"/>
+    <limit effort="100" lower="0.0" upper="${distance}" velocity="0.2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <link name="battery2">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="battery_joint2" type="prismatic">
+    <parent link="cabinet1" />
+    <child link="battery2" />
+    <origin rpy="0 0 0" xyz="0	0	1.6093" />
+    <axis xyz="0 -1 0"/>
+    <limit effort="100" lower="0.0" upper="${distance}" velocity="0.2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <link name="battery3">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="battery_joint3" type="prismatic">
+    <parent link="cabinet1" />
+    <child link="battery3" />
+    <origin rpy="0 0 0" xyz="0.1971	0	1.6093" />
+    <axis xyz="0 -1 0"/>
+    <limit effort="100" lower="0.0" upper="${distance}" velocity="0.2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <link name="battery4">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="battery_joint4" type="prismatic">
+    <parent link="cabinet1" />
+    <child link="battery4" />
+    <origin rpy="0 0 0" xyz="-0.1969	0	1.701" />
+    <axis xyz="0 -1 0"/>
+    <limit effort="100" lower="0.0" upper="${distance}" velocity="0.2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <link name="battery5">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="battery_joint5" type="prismatic">
+    <parent link="cabinet1" />
+    <child link="battery5" />
+    <origin rpy="0 0 0" xyz="0	0	1.701" />
+    <axis xyz="0 -1 0"/>
+    <limit effort="100" lower="0.0" upper="${distance}" velocity="0.2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <link name="battery6">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="battery_joint6" type="prismatic">
+    <parent link="cabinet1" />
+    <child link="battery6" />
+    <origin rpy="0 0 0" xyz="0.1971	0	1.701" />
+    <axis xyz="0 -1 0"/>
+    <limit effort="100" lower="0.0" upper="${distance}" velocity="0.2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <link name="battery7">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="battery_joint7" type="prismatic">
+    <parent link="cabinet1" />
+    <child link="battery7" />
+    <origin rpy="0 0 0" xyz="-0.1969	0	1.7927" />
+    <axis xyz="0 -1 0"/>
+    <limit effort="100" lower="0.0" upper="${distance}" velocity="0.2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <link name="battery8">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="battery_joint8" type="prismatic">
+    <parent link="cabinet1" />
+    <child link="battery8" />
+    <origin rpy="0 0 0" xyz="0	0	1.7927" />
+    <axis xyz="0 -1 0"/>
+    <limit effort="100" lower="0.0" upper="${distance}" velocity="0.2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <link name="battery9">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery1.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="battery_joint9" type="prismatic">
+    <parent link="cabinet1" />
+    <child link="battery9" />
+    <origin rpy="0 0 0" xyz="0.1971	0	1.7927" />
+    <axis xyz="0 -1 0"/>
+    <limit effort="100" lower="0.0" upper="${distance}" velocity="0.2"/>
+    <dynamics damping="0.3"/>
+  </joint>
+
+  <link name="handle1">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="handle_joint1" type="fixed">
+    <parent link="battery1" />
+    <child link="handle1" />
+    <origin rpy="0 0 0" xyz="0	-0.058	0" />
+  </joint>
+
+  <link name="handle2">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="handle_joint2" type="fixed">
+    <parent link="battery2" />
+    <child link="handle2" />
+    <origin rpy="0 0 0" xyz="0	-0.058	0" />
+  </joint>
+
+  <link name="handle3">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="handle_joint3" type="fixed">
+    <parent link="battery3" />
+    <child link="handle3" />
+    <origin rpy="0 0 0" xyz="0	-0.058	0" />
+  </joint>
+
+  <link name="handle4">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="handle_joint4" type="fixed">
+    <parent link="battery4" />
+    <child link="handle4" />
+    <origin rpy="0 0 0" xyz="0	-0.058	0" />
+  </joint>
+
+  <link name="handle5">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="handle_joint5" type="fixed">
+    <parent link="battery5" />
+    <child link="handle5" />
+    <origin rpy="0 0 0" xyz="0	-0.058	0" />
+  </joint>
+
+  <link name="handle6">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="handle_joint6" type="fixed">
+    <parent link="battery6" />
+    <child link="handle6" />
+    <origin rpy="0 0 0" xyz="0	-0.058	0" />
+  </joint>
+
+  <link name="handle7">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="handle_joint7" type="fixed">
+    <parent link="battery7" />
+    <child link="handle7" />
+    <origin rpy="0 0 0" xyz="0	-0.058	0" />
+  </joint>
+
+  <link name="handle8">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="handle_joint8" type="fixed">
+    <parent link="battery8" />
+    <child link="handle8" />
+    <origin rpy="0 0 0" xyz="0	-0.058	0" />
+  </joint>
+
+  <link name="handle9">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="1.0"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="-0.0" iyy="0.001" iyz="-0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0 " xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://battery_description/meshes/battery2.STL"/>
+      </geometry>
+    </collision>
+  </link>
+
+  <joint name="handle_joint9" type="fixed">
+    <parent link="battery9" />
+    <child link="handle9" />
+    <origin rpy="0 0 0" xyz="0	-0.058	0" />
+  </joint>
+
+</robot>
